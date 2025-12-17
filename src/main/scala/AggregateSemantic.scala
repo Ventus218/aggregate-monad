@@ -106,3 +106,11 @@ def p: Unit =
     yield (res)
   val round2 = program2.foldMap(compiler)
   println(round2(env).run(ValueTree.empty).value)
+
+  // TODO: stackoverflow
+  // should convert then and else to by name parameters
+  def f(n: Int): Aggregate[Int] =
+    branch(n >= 0, f(n - 1), exchange(0, _ => retsend(0)))
+  val program3 = f(3)
+  val round3 = program3.foldMap(compiler)
+  println(round3(env).run(ValueTree.empty).value)
