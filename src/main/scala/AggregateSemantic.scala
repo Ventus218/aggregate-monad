@@ -1,3 +1,5 @@
+import NValues.*
+import scala.language.implicitConversions
 import AggregateGrammar.*
 
 type Device = Int
@@ -23,6 +25,7 @@ def compiler: AggregateGrammar ~> Round =
         case Exchange(init, body) =>
           for
             env <- ReaderT.ask[ValueTreeState, Env]
+            // TODO: align and then give as input to the body the right NValues
             (ret, send) = body
               .asInstanceOf[NValue[Any] => (A, NValue[Any])](env.nvalues)
             _ <- ReaderT.liftF(

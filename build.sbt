@@ -7,6 +7,7 @@ lazy val root = project
     name := "aggregate-monad",
     version := "0.1.0-SNAPSHOT",
     scalaVersion := scala3Version,
+    scalacOptions += "-feature",
     libraryDependencies += "org.typelevel" %% "cats-core" % catsVersion,
     libraryDependencies += "org.typelevel" %% "cats-kernel" % catsVersion,
     libraryDependencies += "org.typelevel" %% "cats-free" % catsVersion
