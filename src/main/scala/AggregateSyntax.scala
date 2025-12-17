@@ -1,3 +1,6 @@
+import NValues.*
+import scala.language.implicitConversions
+
 enum AggregateGrammar[A]:
   case Exchange[A, S](init: S, body: NValue[S] => (A, NValue[S]))
       extends AggregateGrammar[A]

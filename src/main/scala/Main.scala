@@ -1,5 +1,8 @@
+import NValues.*
+
 object Main:
   def distanceEstimate(n: NValue[Float]): Float =
+    // TODO: replace map +1 with sensor reading
     nfold(math.min, n.map(1.+), Float.PositiveInfinity)
 
   def distanceTo(src: Boolean): Aggregate[Float] =

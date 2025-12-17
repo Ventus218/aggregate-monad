@@ -1,6 +1,16 @@
-case class NValue[A](default: A, values: Map[Device, A]):
-  def map[B](f: A => B): NValue[B] =
-    NValue(f(default), values.view.mapValues(f).toMap)
+object NValues:
 
-given [A]: Conversion[A, NValue[A]] with
-  def apply(x: A): NValue[A] = NValue(x, Map())
+  opaque type NValue[A] = NValueImpl[A]
+
+  private case class NValueImpl[A](default: A, values: Map[Device, A])
+
+  object NValue:
+    def apply[A](default: A, values: Map[Device, A] = Map()): NValue[A] =
+      NValueImpl(default, values)
+
+  extension [A](n: NValue[A])
+    def map[B](f: A => B): NValue[B] =
+      NValue(f(n.default), n.values.view.mapValues(f).toMap)
+
+  given [A]: Conversion[A, NValue[A]] with
+    def apply(x: A): NValue[A] = NValue(x)
