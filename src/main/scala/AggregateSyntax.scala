@@ -20,6 +20,16 @@ def branch[A](
 ): Aggregate[A] =
   Free.liftF(Branch(cond, the, els))
 
+def branch[A](
+    cond: Aggregate[Boolean],
+    the: Aggregate[A],
+    els: Aggregate[A]
+): Aggregate[A] =
+  for
+    cond <- cond
+    res <- branch(cond, the, els)
+  yield res
+
 // Utils
 
 def nfold[A, B](f: (A, B) => A, nValue: NValue[B], init: A): A = ???
