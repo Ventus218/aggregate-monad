@@ -57,11 +57,15 @@ def compiler: AggregateGrammar ~> Round =
               )
             )
           yield (ret)
+        case Self =>
+          for env <- ReaderT.ask[ValueTreeState, Env]
+          yield env.self
 
 @main
 def p: Unit =
   val program =
     for
+      self <- self
       _ <- exchange(0, _ => retsend(0))
       _ <- exchange(0, _ => retsend(0))
       res <- branch(
@@ -79,9 +83,9 @@ def p: Unit =
         yield (),
         exchange(0, _ => retsend(0))
       )
-    yield (res)
+    yield (self)
   val round = program.foldMap(compiler)
-  val env = Env(Map(), 3)
+  val env = Env(Map(), 2)
   println(round(env).run(ValueTree.empty).value)
 
   val program2 =

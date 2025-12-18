@@ -11,6 +11,8 @@ object NValues:
   extension [A](n: NValue[A])
     def map[B](f: A => B): NValue[B] =
       NValue(f(n.default), n.values.view.mapValues(f).toMap)
+    def toMap: Map[Device, A] =
+      n.values
 
   given [A]: Conversion[A, NValue[A]] with
     def apply(x: A): NValue[A] = NValue(x)
