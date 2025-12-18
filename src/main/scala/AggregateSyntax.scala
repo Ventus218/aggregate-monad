@@ -4,7 +4,7 @@ import scala.language.implicitConversions
 enum AggregateGrammar[A]:
   case Exchange[A, S](init: S, body: NValue[S] => (A, NValue[S]))
       extends AggregateGrammar[A]
-  case Branch(cond: Boolean, the: Aggregate[A], els: Aggregate[A])
+  case Branch(cond: Boolean, the: () => Aggregate[A], els: () => Aggregate[A])
 import AggregateGrammar.*
 
 import cats.free.Free
@@ -15,15 +15,15 @@ def exchange[R, S](init: S, body: NValue[S] => (R, NValue[S])): Aggregate[R] =
 
 def branch[A](
     cond: Boolean,
-    the: Aggregate[A],
-    els: Aggregate[A]
+    the: => Aggregate[A],
+    els: => Aggregate[A]
 ): Aggregate[A] =
-  Free.liftF(Branch(cond, the, els))
+  Free.liftF(Branch(cond, () => the, () => els))
 
 def branch[A](
     cond: Aggregate[Boolean],
-    the: Aggregate[A],
-    els: Aggregate[A]
+    the: => Aggregate[A],
+    els: => Aggregate[A]
 ): Aggregate[A] =
   for
     cond <- cond
