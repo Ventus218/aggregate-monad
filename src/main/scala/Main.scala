@@ -1,37 +1,44 @@
 import NValues.*
+import AggregateSyntax.*
+import scala.language.implicitConversions
+import scala.math.Numeric.Implicits.infixNumericOps
 
-object Main:
-  def distanceEstimate(n: NValue[Float]): Float =
-    // TODO: replace map +1 with sensor reading
-    nfold(math.min, n.map(1.+), Float.PositiveInfinity)
+object Main extends App:
+  def senseDist: Aggregate[Float] =
+    sensor("senseDist")
 
-  def distanceTo(src: Boolean): Aggregate[Float] =
+  def isSource: Aggregate[Boolean] =
+    sensor("source")
+
+  def distanceEstimate(n: Aggregate[Float]): Aggregate[Float] =
+    nfold(Float.PositiveInfinity)(n + senseDist)(math.min)
+
+  def distanceTo(src: Aggregate[Boolean]): Aggregate[Float] =
     exchange(
       Float.PositiveInfinity,
-      (n) => retsend(mux(src, 0, distanceEstimate(n)))
+      (n) => retsend(mux(src, 0f, distanceEstimate(n)))
     )
 
-  def average(weight: Float, value: Float): Aggregate[Float] =
-    for
-      nweights <- nbr(0f, weight)
-      totW = nfold[Float, Float](plus, nweights, weight)
-      nvalues <- nbr(0f, weight * value)
-      totVl = nfold[Float, Float](plus, nvalues, weight * value)
-    yield (totVl / totW)
+  def average(
+      weight: Aggregate[Float],
+      value: Aggregate[Float]
+  ): Aggregate[Float] =
+    val totW = nfold(weight)(nbr(0f, weight))(_ + _)
+    val totVl =
+      nfold(weight * value)(nbr(0f, weight * value))(_ + _)
+    import scala.math.Fractional.Implicits.*
+    totVl / totW
 
   def program: Aggregate[Float] =
-    for
-      avg <- average(0, 0)
-      dst <- distanceTo(true)
-    yield avg + dst
+    average(0f, 0f) + distanceTo(isSource)
 
-  def recursion(n: Int, default: Float): Aggregate[Float] =
-    for
-      a <- nbr(0f, 4f)
-      res <-
-        if n > 0 then recursion(n - 1, default)
-        else
-          nbr(default, default).map(nvalues =>
-            nfold[Float, Float](plus, nvalues, 0)
-          )
-    yield (res)
+  // def recursion(n: Int, default: Float): Aggregate[Float] =
+  //   for
+  //     a <- nbr(0f, 4f)
+  //     res <-
+  //       if n > 0 then recursion(n - 1, default)
+  //       else
+  //         nbr(default, default).map(nvalues =>
+  //           nfold[Float, Float](0)(plus)( nvalues)
+  //         )
+  //   yield (res)

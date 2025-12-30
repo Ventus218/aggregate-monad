@@ -10,5 +10,6 @@ lazy val root = project
     scalacOptions += "-feature",
     libraryDependencies += "org.typelevel" %% "cats-core" % catsVersion,
     libraryDependencies += "org.typelevel" %% "cats-kernel" % catsVersion,
-    libraryDependencies += "org.typelevel" %% "cats-free" % catsVersion
+    libraryDependencies += "org.typelevel" %% "cats-free" % catsVersion,
+    libraryDependencies += "org.scalatest" %% "scalatest" % "3.2.19" % Test
   )
