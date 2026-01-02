@@ -2,99 +2,117 @@ package aggregate
 
 trait AggregateAPI:
   type Device
-  type NValue[_]
   type Aggregate[_]
-  type NVAggregate[A] = Aggregate[NValue[A]]
 
-  def sensor[A](name: NVAggregate[String]): NVAggregate[A]
-  def call[A](f: Aggregate[() => NVAggregate[A]]): NVAggregate[A]
-  def exchange[A](init: NVAggregate[A])(
-      f: NVAggregate[A] => (NVAggregate[A], NVAggregate[A])
-  ): NVAggregate[A]
+  def sensor[A](name: Aggregate[String]): Aggregate[A]
+  def call[A](f: Aggregate[() => Aggregate[A]]): Aggregate[A]
+  def exchange[A](init: Aggregate[A])(
+      f: Aggregate[A] => (Aggregate[A], Aggregate[A])
+  ): Aggregate[A]
 
-  def mux[A](cond: NVAggregate[Boolean])(th: NVAggregate[A])(
-      el: NVAggregate[A]
-  ): NVAggregate[A]
+  def mux[A](cond: Aggregate[Boolean])(th: Aggregate[A])(
+      el: Aggregate[A]
+  ): Aggregate[A]
 
   // TODO: should we wrap f return type in Aggregate?
-  def nfold[A, B](init: NVAggregate[A])(a: NVAggregate[B])(
+  def nfold[A, B](init: Aggregate[A])(a: Aggregate[B])(
       f: (A, B) => A
-  ): NVAggregate[A]
-  def retsend[A](a: NVAggregate[A]): (NVAggregate[A], NVAggregate[A])
+  ): Aggregate[A]
+  def retsend[A](a: Aggregate[A]): (Aggregate[A], Aggregate[A])
 
-  // There may be better alternatives
-  def nv[A](a: A): NValue[A]
+  def uid: Aggregate[Device]
+
+  extension [A](fa: Aggregate[A])
+    def self: Aggregate[A]
+    def updateSelf(f: A => A): Aggregate[A]
 
   extension [A](fa: Aggregate[A])
     def map[B](f: A => B): Aggregate[B]
     def flatMap[B](f: A => Aggregate[B]): Aggregate[B]
 
-  extension [A](fa: NVAggregate[A]) def self: Aggregate[A]
-
   given pureGiven[A]: Conversion[A, Aggregate[A]]
-  given pureNVGiven[A]: Conversion[A, NVAggregate[A]]
 
 object AggregateAPI extends AggregateAPI:
   type Device = Int
-  case class NValue[A]()
 
-  override def sensor[A](name: NVAggregate[String]): NVAggregate[A] = ???
+  def sensor[A](name: Aggregate[String]): Aggregate[A] = ???
 
   // TODO: recheck
-  override def call[A](f: Aggregate[() => NVAggregate[A]]): NVAggregate[A] = ???
+  def call[A](f: Aggregate[() => Aggregate[A]]): Aggregate[A] = ???
 
-  override def exchange[A](init: NVAggregate[A])(
-      f: NVAggregate[A] => (NVAggregate[A], NVAggregate[A])
-  ): NVAggregate[A] = ???
+  def exchange[A](init: Aggregate[A])(
+      f: Aggregate[A] => (Aggregate[A], Aggregate[A])
+  ): Aggregate[A] = ???
 
-  override def mux[A](cond: NVAggregate[Boolean])(th: NVAggregate[A])(
-      el: NVAggregate[A]
-  ): NVAggregate[A] = ???
+  def mux[A](cond: Aggregate[Boolean])(th: Aggregate[A])(
+      el: Aggregate[A]
+  ): Aggregate[A] = ???
 
-  override def nfold[A, B](init: NVAggregate[A])(a: NVAggregate[B])(
+  def nfold[A, B](init: Aggregate[A])(a: Aggregate[B])(
       f: (A, B) => A
-  ): NVAggregate[A] = ???
+  ): Aggregate[A] = ???
 
-  override def retsend[A](a: NVAggregate[A]): (NVAggregate[A], NVAggregate[A]) =
+  def retsend[A](a: Aggregate[A]): (Aggregate[A], Aggregate[A]) =
     ???
 
-  def nv[A](a: A): NValue[A] = ???
+  def uid: Aggregate[Device] = ???
 
   extension [A](fa: Aggregate[A])
-    override def map[B](f: A => B): Aggregate[B] = ???
-    override def flatMap[B](f: A => Aggregate[B]): Aggregate[B] = ???
+    def self: Aggregate[A] = ???
+    def updateSelf(f: A => A): Aggregate[A] = ???
 
-  extension [A](fa: NVAggregate[A]) override def self: Aggregate[A] = ???
+  extension [A](fa: Aggregate[A])
+    def map[B](f: A => B): Aggregate[B] = ???
+    def flatMap[B](f: A => Aggregate[B]): Aggregate[B] = ???
 
   given pureGiven[A]: Conversion[A, Aggregate[A]] = ???
 
-  given pureNVGiven[A]: Conversion[A, NVAggregate[A]] = ???
-
-
 trait AggregateLib:
   import AggregateAPI.*
-  def nbr[A](default: NVAggregate[A], send: NVAggregate[A]): NVAggregate[A]
-  def branch[A]( cond: NVAggregate[Boolean])( the: => NVAggregate[A])( els: => NVAggregate[A]): NVAggregate[A]
+  def nbr[A](default: Aggregate[A], send: Aggregate[A]): Aggregate[A]
+  def branch[A](cond: Aggregate[Boolean])(the: => Aggregate[A])(
+      els: => Aggregate[A]
+  ): Aggregate[A]
+
+  // Logic operators
+  extension (a: Aggregate[Boolean])
+    infix def &(b: Aggregate[Boolean]): Aggregate[Boolean]
+    infix def |(b: Aggregate[Boolean]): Aggregate[Boolean]
 
   // MATH
-  extension [A: Numeric](a: NVAggregate[A])
-    infix def +(b: NVAggregate[A]): NVAggregate[A]
-    infix def -(b: NVAggregate[A]): NVAggregate[A]
-    infix def *(b: NVAggregate[A]): NVAggregate[A]
+  extension [A: Numeric](a: Aggregate[A])
+    infix def +(b: Aggregate[A]): Aggregate[A]
+    infix def -(b: Aggregate[A]): Aggregate[A]
+    infix def *(b: Aggregate[A]): Aggregate[A]
+    infix def <(b: Aggregate[A]): Aggregate[Boolean]
+    infix def >(b: Aggregate[A]): Aggregate[Boolean]
+    infix def <=(b: Aggregate[A]): Aggregate[Boolean]
+    infix def >=(b: Aggregate[A]): Aggregate[Boolean]
 
-  extension [A: Fractional](a: NVAggregate[A])
-    infix def /(b: NVAggregate[A]): NVAggregate[A]
+  extension [A: Fractional](a: Aggregate[A])
+    infix def /(b: Aggregate[A]): Aggregate[A]
 
 object AggregateLib extends AggregateLib:
   import AggregateAPI.*
-  def nbr[A](default: NVAggregate[A], send: NVAggregate[A]): NVAggregate[A] = ???
-  def branch[A]( cond: NVAggregate[Boolean])( the: => NVAggregate[A])( els: => NVAggregate[A]): NVAggregate[A] = ???
+  def nbr[A](default: Aggregate[A], send: Aggregate[A]): Aggregate[A] = ???
+  def branch[A](cond: Aggregate[Boolean])(the: => Aggregate[A])(
+      els: => Aggregate[A]
+  ): Aggregate[A] = ???
+
+  // Logic operators
+  extension (a: Aggregate[Boolean])
+    infix def &(b: Aggregate[Boolean]): Aggregate[Boolean] = ???
+    infix def |(b: Aggregate[Boolean]): Aggregate[Boolean] = ???
 
   // MATH
-  extension [A: Numeric](a: NVAggregate[A])
-    infix def +(b: NVAggregate[A]): NVAggregate[A] = ???
-    infix def -(b: NVAggregate[A]): NVAggregate[A] = ???
-    infix def *(b: NVAggregate[A]): NVAggregate[A] = ???
+  extension [A: Numeric](a: Aggregate[A])
+    infix def +(b: Aggregate[A]): Aggregate[A] = ???
+    infix def -(b: Aggregate[A]): Aggregate[A] = ???
+    infix def *(b: Aggregate[A]): Aggregate[A] = ???
+    infix def <(b: Aggregate[A]): Aggregate[Boolean] = ???
+    infix def >(b: Aggregate[A]): Aggregate[Boolean] = ???
+    infix def <=(b: Aggregate[A]): Aggregate[Boolean] = ???
+    infix def >=(b: Aggregate[A]): Aggregate[Boolean] = ???
 
-  extension [A: Fractional](a: NVAggregate[A])
-    infix def /(b: NVAggregate[A]): NVAggregate[A] = ???
+  extension [A: Fractional](a: Aggregate[A])
+    infix def /(b: Aggregate[A]): Aggregate[A] = ???
