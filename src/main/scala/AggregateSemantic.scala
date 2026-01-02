@@ -1,16 +1,24 @@
-import NValues.*
-import scala.language.implicitConversions
-import AggregateSyntax.*
-
+// package aggregate
+//
+// import NValues.*
+// import scala.language.implicitConversions
+// import AggregateSyntax.*
+//
+// type Device = Int
+//
+// case class Env(
+//     mid: Device,
+//     alignedNbrs: Set[Device],
+//     sensors: Map[String, Any])
+//
 // object AggregateSemantic:
 //
-//   type Device = Int
 //   case class Env(nvalues: Map[Device, ValueTree[Any]], self: Device)
 //
 //   enum ValueTree[A]:
-//     // cond = None -> root
-//     case Branch(cond: Option[Boolean], children: Seq[ValueTree[A]])
-//     case Exchange(send: NValue[A])
+//     case Call()
+//     case Exchange(send: NValue[A], vt: ValueTree[A])
+//     case Empty
 //
 //   object ValueTree:
 //     def empty[A]: ValueTree[A] = ValueTree.Branch(None, Seq())
