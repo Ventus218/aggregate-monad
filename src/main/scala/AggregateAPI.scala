@@ -7,8 +7,8 @@ trait AggregateAPI:
   def sensor[A](name: Aggregate[String]): Aggregate[A]
   // TODO: recheck
   def call[A](f: Aggregate[() => Aggregate[A]]): Aggregate[A]
-  def exchange[A](init: Aggregate[A])(
-      f: Aggregate[A] => (Aggregate[A], Aggregate[A])
+  def exchange[A, S](init: Aggregate[S])(
+      f: Aggregate[S] => (Aggregate[A], Aggregate[S])
   ): Aggregate[A]
 
   def mux[A](cond: Aggregate[Boolean])(th: Aggregate[A])(
@@ -43,8 +43,8 @@ object AggregateAPI extends AggregateAPI:
   // TODO: recheck
   def call[A](f: Aggregate[() => Aggregate[A]]): Aggregate[A] = ???
 
-  def exchange[A](init: Aggregate[A])(
-      f: Aggregate[A] => (Aggregate[A], Aggregate[A])
+  def exchange[A, S](init: Aggregate[S])(
+      f: Aggregate[S] => (Aggregate[A], Aggregate[S])
   ): Aggregate[A] = ???
 
   def mux[A](cond: Aggregate[Boolean])(th: Aggregate[A])(
