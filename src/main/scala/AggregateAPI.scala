@@ -28,35 +28,8 @@ trait AggregateAPI:
 
   given pureGiven[A]: Conversion[A, Aggregate[A]]
 
-  // TODO: define equals
-
 object AggregateAPI extends AggregateAPI:
-  type Device = Int
-
-  def sensor[A](name: Aggregate[String]): Aggregate[A] = ???
-
-  // TODO: recheck
-  def call[A](f: Aggregate[() => Aggregate[A]]): Aggregate[A] = ???
-
-  def exchange[A, S](init: Aggregate[S])(
-      f: Aggregate[S] => (Aggregate[A], Aggregate[S])
-  ): Aggregate[A] = ???
-
-  def nfold[A, B](init: Aggregate[A])(a: Aggregate[B])(
-      f: (A, B) => A
-  ): Aggregate[A] = ???
-
-  def uid: Aggregate[Device] = ???
-
-  extension [A](fa: Aggregate[A])
-    def self: Aggregate[A] = ???
-    def updateSelf(f: A => A): Aggregate[A] = ???
-
-  extension [A](fa: Aggregate[A])
-    def map[B](f: A => B): Aggregate[B] = ???
-    def flatMap[B](f: A => Aggregate[B]): Aggregate[B] = ???
-
-  given pureGiven[A]: Conversion[A, Aggregate[A]] = ???
+  export AggregateSyntax.{given, *}
 
 trait AggregateLib:
   import AggregateAPI.*
