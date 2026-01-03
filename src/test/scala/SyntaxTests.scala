@@ -51,6 +51,24 @@ def distanceInServiceProvisioning(
 def gossipEver(event: Aggregate[Boolean]): Aggregate[Boolean] =
   exchange(false)((n) => retsend(nfold(n.self | event)(n)(_ | _)))
 
+// // TODO: finish implementation
+// def broadcast[A](dist: Aggregate[Float], value: Aggregate[A]): Aggregate[A] =
+//   def minBreakingTies[A: Numeric, B: Numeric](
+//       a: (Aggregate[A], Aggregate[B]),
+//       b: (Aggregate[A], Aggregate[B])
+//   ): (Aggregate[A], Aggregate[B]) =
+//     ???
+//   val selfRank = (dist, uid.map(_.asInstanceOf[Float]))
+//   val nbrRank = nbr(selfRank, selfRank)
+//   val bestRank = nfold(selfRank)(nbrRank)(minBreakingTies)
+//   val parent = nbrRank eq bestRank
+//   exchange(value)((n) =>
+//     val selfKey = (value == null, selfRank)
+//     val nbrKey = (n == null, nbrRank)
+//     val res = nfold(selfKey, value)(nbrKey, n)(math.min).snd
+//     (res, mux(nbr(false, parent))(res)(null))
+//   )
+
 def dilate(
     region: Aggregate[Boolean],
     width: Aggregate[Float]

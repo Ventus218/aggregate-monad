@@ -5,6 +5,7 @@ trait AggregateAPI:
   type Aggregate[_]
 
   def sensor[A](name: Aggregate[String]): Aggregate[A]
+  // TODO: recheck
   def call[A](f: Aggregate[() => Aggregate[A]]): Aggregate[A]
   def exchange[A](init: Aggregate[A])(
       f: Aggregate[A] => (Aggregate[A], Aggregate[A])
@@ -31,6 +32,8 @@ trait AggregateAPI:
     def flatMap[B](f: A => Aggregate[B]): Aggregate[B]
 
   given pureGiven[A]: Conversion[A, Aggregate[A]]
+
+  // TODO: define equals
 
 object AggregateAPI extends AggregateAPI:
   type Device = Int
@@ -74,6 +77,14 @@ trait AggregateLib:
       els: => Aggregate[A]
   ): Aggregate[A]
 
+  extension [A, B](a: (Aggregate[A], Aggregate[B]))
+    def fst: Aggregate[A]
+    def snd: Aggregate[B]
+
+  // Equals
+  extension [A](a: Aggregate[A])
+    infix def eq(b: Aggregate[A]): Aggregate[Boolean]
+
   // Logic operators
   extension (a: Aggregate[Boolean])
     infix def &(b: Aggregate[Boolean]): Aggregate[Boolean]
@@ -98,6 +109,14 @@ object AggregateLib extends AggregateLib:
   def branch[A](cond: Aggregate[Boolean])(the: => Aggregate[A])(
       els: => Aggregate[A]
   ): Aggregate[A] = ???
+
+  extension [A, B](a: (Aggregate[A], Aggregate[B]))
+    def fst: Aggregate[A] = ???
+    def snd: Aggregate[B] = ???
+
+  // Equals
+  extension [A](a: Aggregate[A])
+    infix def eq(b: Aggregate[A]): Aggregate[Boolean] = ???
 
   // Logic operators
   extension (a: Aggregate[Boolean])
