@@ -1,85 +1,60 @@
-// package aggregate
-//
-// import NValues.*
-//
-// import scala.language.implicitConversions
-//
-// trait AggregateSyntax:
-//   type Device
-//   case class Env(
-//       mid: Device,
-//       alignedNbrs: Set[Device],
-//       sensors: Map[String, Any]
-//   )
-//
-//   private enum AggregateGrammar[A]:
-//     case Exchange[A, S](
-//         init: Aggregate[S],
-//         body: Aggregate[S] => (Aggregate[A], Aggregate[S])
-//     ) extends AggregateGrammar[NValue[A]]
-//     case Call(f: () => Aggregate[A]) extends AggregateGrammar[NValue[A]]
-//     case Builtin(f: (Env) => Agg[A]) extends AggregateGrammar[A]
-//   import AggregateGrammar.*
-//
-//   import cats.free.Free
-//   opaque type Agg[A] = Free[AggregateGrammar, A]
-//   type Aggregate[A] = Agg[NValue[A]]
-//
-//   extension [A](fa: Agg[A])
-//     def flatMap[B](f: A => Agg[B]): Agg[B] =
-//       fa.flatMap(f)
-//     def map[B](f: A => B): Agg[B] =
-//       fa.map(f)
-//
-//   object Aggregate:
-//     def apply[A](x: A): Aggregate[A] =
-//       Free.pure(NValue(x))
-//   object Agg:
-//     def apply[A](x: A): Agg[A] =
-//       Free.pure(x)
-//
-//   given [A]: Conversion[A, Aggregate[A]] with
-//     def apply(x: A): Aggregate[A] = Aggregate(x)
-//
-//   def exchange[R, S](
-//       init: Aggregate[S],
-//       body: Aggregate[S] => (Aggregate[R], Aggregate[S])
-//   ): Aggregate[R] =
-//     Free.liftF(Exchange(init, body))
-//
-//   def call[A](f: () => Aggregate[A]): Aggregate[A] =
-//     Free.liftF(Call(f))
-//
-//   def mid: Agg[Device] =
-//     Free.liftF(Builtin(env => Free.pure(env.mid)))
-//
-//   def sensor[A](name: Aggregate[String]): Agg[A] =
-//     for
-//       str <- name.self
-//       res <- Free.liftF(Builtin(env => Free.pure(env.sensors(str))))
-//     yield res.asInstanceOf[A]
-//
-//   // TODO: is using NValues for f too restrictive? should/can we use Aggregate
-//   def nfold[A, B](init: Aggregate[A])(nValue: Aggregate[B])(
-//       f: (A, B) => A
-//   ): Aggregate[A] =
-//     Free.liftF(
-//       Builtin(env =>
-//         for
-//           init <- init.self
-//           nValue <- nValue
-//           res = nValue.values.view
-//             .filterKeys(n => env.alignedNbrs.contains(n))
-//             .values
-//             .foldLeft(init)(f)
-//         yield NValue(res)
-//       )
-//     )
-//
-//   export Utils.{*, given}
-//
-// object AggregateSyntax extends AggregateSyntax:
-//   type Device = Int
+package aggregate
+
+import scala.language.implicitConversions
+
+object AggregateSyntax extends AggregateAPI:
+
+  private enum AggregateGrammar[A]:
+    case Exchange[A, S](
+        init: Aggregate[S],
+        body: Aggregate[S] => (Aggregate[A], Aggregate[S])
+    ) extends AggregateGrammar[A]
+    case NFold[A, B](init: Aggregate[A], a: Aggregate[B], f: (A, B) => A)
+        extends AggregateGrammar[A]
+    case Call(f: Aggregate[() => Aggregate[A]])
+    case Sensor(name: Aggregate[String])
+    case Uid extends AggregateGrammar[Device]
+    case Self(of: Aggregate[A])
+    // More generally this will become UpdateDevice and then we can implement this through Map
+    case UpdateSelf[A, B](fa: Aggregate[A], f: A => B)
+        extends AggregateGrammar[B]
+    case Map[A, B](fa: Aggregate[A], f: A => B) extends AggregateGrammar[B]
+    case FlatMap[A, B](fa: Aggregate[A], f: A => Aggregate[B])
+        extends AggregateGrammar[B]
+  import AggregateGrammar.*
+
+  import cats.free.Free
+  opaque type Aggregate[A] = Free[AggregateGrammar, A]
+
+  def sensor[A](name: Aggregate[String]): Aggregate[A] =
+    Free.liftF(Sensor(name))
+
+  def call[A](f: Aggregate[() => Aggregate[A]]): Aggregate[A] =
+    Free.liftF(Call(f))
+
+  def exchange[A, S](init: Aggregate[S])(
+      f: Aggregate[S] => (Aggregate[A], Aggregate[S])
+  ): Aggregate[A] =
+    Free.liftF(Exchange(init, f))
+
+  def nfold[A, B](init: Aggregate[A])(a: Aggregate[B])(
+      f: (A, B) => A
+  ): Aggregate[A] =
+    Free.liftF(NFold(init, a, f))
+
+  def uid: Aggregate[Device] =
+    Free.liftF(Uid)
+
+  extension [A](fa: Aggregate[A])
+    def self: Aggregate[A] = Free.liftF(Self(fa))
+    def updateSelf(f: A => A): Aggregate[A] = Free.liftF(UpdateSelf(fa, f))
+    def map[B](f: A => B): Aggregate[B] = Free.liftF(Map(fa, f))
+    def flatMap[B](f: A => Aggregate[B]): Aggregate[B] =
+      Free.liftF(FlatMap(fa, f))
+
+  given pureGiven[A]: Conversion[A, Aggregate[A]] with
+    def apply(x: A): Aggregate[A] = Free.pure(x)
+
 //
 // object Utils:
 //   import AggregateSyntax.*
