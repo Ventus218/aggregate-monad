@@ -11,15 +11,10 @@ trait AggregateAPI:
       f: Aggregate[S] => (Aggregate[A], Aggregate[S])
   ): Aggregate[A]
 
-  def mux[A](cond: Aggregate[Boolean])(th: Aggregate[A])(
-      el: Aggregate[A]
-  ): Aggregate[A]
-
   // TODO: should we wrap f return type in Aggregate?
   def nfold[A, B](init: Aggregate[A])(a: Aggregate[B])(
       f: (A, B) => A
   ): Aggregate[A]
-  def retsend[A](a: Aggregate[A]): (Aggregate[A], Aggregate[A])
 
   def uid: Aggregate[Device]
 
@@ -47,16 +42,9 @@ object AggregateAPI extends AggregateAPI:
       f: Aggregate[S] => (Aggregate[A], Aggregate[S])
   ): Aggregate[A] = ???
 
-  def mux[A](cond: Aggregate[Boolean])(th: Aggregate[A])(
-      el: Aggregate[A]
-  ): Aggregate[A] = ???
-
   def nfold[A, B](init: Aggregate[A])(a: Aggregate[B])(
       f: (A, B) => A
   ): Aggregate[A] = ???
-
-  def retsend[A](a: Aggregate[A]): (Aggregate[A], Aggregate[A]) =
-    ???
 
   def uid: Aggregate[Device] = ???
 
@@ -73,9 +61,16 @@ object AggregateAPI extends AggregateAPI:
 trait AggregateLib:
   import AggregateAPI.*
   def nbr[A](default: Aggregate[A], send: Aggregate[A]): Aggregate[A]
+
+  def mux[A](cond: Aggregate[Boolean])(th: Aggregate[A])(
+      el: Aggregate[A]
+  ): Aggregate[A]
+
   def branch[A](cond: Aggregate[Boolean])(the: => Aggregate[A])(
       els: => Aggregate[A]
   ): Aggregate[A]
+
+  def retsend[A](a: Aggregate[A]): (Aggregate[A], Aggregate[A])
 
   extension [A, B](a: (Aggregate[A], Aggregate[B]))
     def fst: Aggregate[A]
@@ -106,9 +101,16 @@ trait AggregateLib:
 object AggregateLib extends AggregateLib:
   import AggregateAPI.*
   def nbr[A](default: Aggregate[A], send: Aggregate[A]): Aggregate[A] = ???
+
+  def mux[A](cond: Aggregate[Boolean])(th: Aggregate[A])(
+      el: Aggregate[A]
+  ): Aggregate[A] = ???
+
   def branch[A](cond: Aggregate[Boolean])(the: => Aggregate[A])(
       els: => Aggregate[A]
   ): Aggregate[A] = ???
+
+  def retsend[A](a: Aggregate[A]): (Aggregate[A], Aggregate[A]) = ???
 
   extension [A, B](a: (Aggregate[A], Aggregate[B]))
     def fst: Aggregate[A] = ???
