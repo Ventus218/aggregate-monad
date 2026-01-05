@@ -1,10 +1,11 @@
-package aggregate
+package aggregate.free
 
+import aggregate.AggregateAPI
 import scala.language.implicitConversions
 
 object AggregateSyntax extends AggregateAPI:
 
-  private enum AggregateGrammar[A]:
+  private[free] enum AggregateGrammar[A]:
     case Exchange[A, S](
         init: Aggregate[S],
         body: Aggregate[S] => (Aggregate[A], Aggregate[S])
@@ -13,8 +14,8 @@ object AggregateSyntax extends AggregateAPI:
         extends AggregateGrammar[A]
     case Call(f: Aggregate[() => Aggregate[A]])
     case Sensor(name: Aggregate[String])
-    case Uid extends AggregateGrammar[Device]
-    case Self(of: Aggregate[A])
+    case Uid() extends AggregateGrammar[Device]
+    case Self(a: Aggregate[A])
     // More generally this will become UpdateDevice and then we can implement this through Map
     case UpdateSelf[A, B](fa: Aggregate[A], f: A => B)
         extends AggregateGrammar[B]
@@ -24,7 +25,7 @@ object AggregateSyntax extends AggregateAPI:
   import AggregateGrammar.*
 
   import cats.free.Free
-  opaque type Aggregate[A] = Free[AggregateGrammar, A]
+  type Aggregate[A] = Free[AggregateGrammar, A]
 
   def sensor[A](name: Aggregate[String]): Aggregate[A] =
     Free.liftF(Sensor(name))
@@ -43,7 +44,7 @@ object AggregateSyntax extends AggregateAPI:
     Free.liftF(NFold(init, a, f))
 
   def uid: Aggregate[Device] =
-    Free.liftF(Uid)
+    Free.liftF(Uid())
 
   extension [A](fa: Aggregate[A])
     def self: Aggregate[A] = Free.liftF(Self(fa))

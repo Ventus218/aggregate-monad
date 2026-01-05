@@ -29,6 +29,7 @@ trait AggregateAPI:
   given pureGiven[A]: Conversion[A, Aggregate[A]]
 
 object AggregateAPI extends AggregateAPI:
+  import aggregate.free.AggregateSyntax
   export AggregateSyntax.{given, *}
 
 trait AggregateLib:
