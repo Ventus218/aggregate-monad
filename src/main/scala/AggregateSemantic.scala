@@ -1,131 +1,130 @@
-// package aggregate
-//
-// import NValues.*
-// import scala.language.implicitConversions
-// import AggregateSyntax.*
-//
-// type Device = Int
-//
-// case class Env(
-//     mid: Device,
-//     alignedNbrs: Set[Device],
-//     sensors: Map[String, Any])
-//
-// object AggregateSemantic:
-//
-//   case class Env(nvalues: Map[Device, ValueTree[Any]], self: Device)
-//
-//   enum ValueTree[A]:
-//     case Call()
-//     case Exchange(send: NValue[A], vt: ValueTree[A])
-//     case Empty
-//
-//   object ValueTree:
-//     def empty[A]: ValueTree[A] = ValueTree.Branch(None, Seq())
-//
-//   import cats.data.State
-//   import cats.data.ReaderT
-//   type ValueTreeState[A] = State[ValueTree[Any], A]
-//   type Round[A] = ReaderT[ValueTreeState, Env, A]
-//   import cats.~>
-//   def compiler: AggregateGrammar ~> Round =
-//     new (AggregateGrammar ~> Round):
-//       def apply[A](fa: AggregateGrammar[A]): Round[A] =
-//         fa match
-//           case Exchange(init, body) =>
-//             for
-//               env <- ReaderT.ask[ValueTreeState, Env]
-//               // TODO: align and then give as input to the body the right NValues
-//               (ret, send) = body
-//                 .asInstanceOf[NValue[Any] => (A, NValue[Any])](env.nvalues)
-//               _ <- ReaderT.liftF(
-//                 State.modify[ValueTree[Any]](curr =>
-//                   curr match
-//                     case ValueTree.Branch(cond, vts) =>
-//                       ValueTree.Branch(cond, vts :+ ValueTree.Exchange(send))
-//                     case ValueTree.Exchange(_) =>
-//                       throw new IllegalStateException()
-//                 )
-//               )
-//             yield (ret)
-//           case Branch(cond, the, els) =>
-//             for
-//               env <- ReaderT.ask[ValueTreeState, Env]
-//               branch = if cond then the() else els()
-//               (vt, ret) = branch
-//                 .foldMap(compiler)
-//                 .run(env)
-//                 .run(ValueTree.Branch(Some(cond), Seq()))
-//                 .value
-//               _ <- ReaderT.liftF(
-//                 State.modify[ValueTree[Any]](curr =>
-//                   curr match
-//                     case ValueTree.Branch(c, vts) =>
-//                       ValueTree.Branch(c, vts :+ vt)
-//                     case ValueTree.Exchange(_) =>
-//                       throw new IllegalStateException()
-//                 )
-//               )
-//             yield (ret)
-//
-//   @main
-//   def p: Unit =
-//     val program =
-//       for
-//         _ <- exchange(0, _ => retsend(0))
-//         _ <- exchange(0, _ => retsend(0))
-//         res <- branch(
-//           true,
-//           for
-//             _ <- exchange(0, _ => retsend(0))
-//             _ <- branch(
-//               true,
-//               for
-//                 _ <- exchange(0, _ => retsend(0))
-//                 _ <- exchange(0, _ => retsend(0))
-//               yield (),
-//               exchange(0, _ => retsend(0))
-//             )
-//           yield (),
-//           exchange(0, _ => retsend(0))
-//         )
-//       yield (res)
-//     val round = program.foldMap(compiler)
-//     val env = Env(Map(), 3)
-//     println(round(env).run(ValueTree.empty).value)
-//
-//     val program2 =
-//       for
-//         _ <- exchange(0, _ => retsend(0))
-//         _ <- exchange(0, _ => retsend(0))
-//         res <- branch(
-//           false,
-//           for
-//             _ <- exchange(0, _ => retsend(0))
-//             _ <- branch(
-//               true,
-//               for
-//                 _ <- exchange(0, _ => retsend(0))
-//                 _ <- exchange(0, _ => retsend(0))
-//               yield (),
-//               exchange(0, _ => retsend(0))
-//             )
-//           yield (),
-//           exchange(0, _ => retsend(0))
-//         )
-//       yield (res)
-//     val round2 = program2.foldMap(compiler)
-//     println(round2(env).run(ValueTree.empty).value)
-//
-//     def f(n: Int): Aggregate[Int] =
-//       branch(
-//         n >= 0,
-//         for
-//           res <- f(n - 1)
-//           _ <- exchange(0, _ => retsend(0))
-//         yield (res),
-//         exchange(0, _ => retsend(0))
-//       )
-//     val program3 = f(1)
-//     val round3 = program3.foldMap(compiler)
-//     println(round3(env).run(ValueTree.empty).value)
+package aggregate.free
+
+import scala.language.implicitConversions
+import AggregateSyntax.*
+import scala.annotation.tailrec
+
+object AggregateSemantic:
+
+  import cats.data.State
+  import cats.data.ReaderT
+  import cats.data.Reader
+  type ValueTreeState[A] = State[Output[Any], A]
+  // opaque type Round[A] = ReaderT[ValueTreeState, Env, A]
+  opaque type Round[A] = ReaderT[OrderedTree, Env, A]
+
+  object Round:
+    def env: Round[Env] = ReaderT.ask
+    def uid: Round[Device] = env.map(_.uid)
+    def sensors: Round[Map[String, Any]] = env.map(_.sensors)
+    def appendPath(p: Path): Round[Unit] =
+      ReaderT.liftF(State.modify(_.appendPath(p)))
+
+  opaque type Env = EnvImpl
+  case class EnvImpl(
+      valueTrees: Map[Device, ValueTree[Any]],
+      uid: Device,
+      sensors: Map[String, Any]
+  )
+  extension (e: Env)
+    def uid: Device = e.uid
+    def sensors: Map[String, Any] = e.sensors
+    def alignedNeighbours(path: Path): Set[Device] = ???
+    def alignedMessaged(path: Path): Map[Device, Any] = ???
+
+  case class NbrMap[A](default: A, values: Map[Device, A]):
+    def apply(d: Device): A = values.get(d).getOrElse(default)
+
+  case class Output[A](valueTree: ValueTree[A], path: Path):
+    def appendPath(p: Path): Output[A] =
+      Output(valueTree, path.append(p))
+  object Output:
+    def empty[A]: Output[A] = Output(ValueTree.Node(Seq()), Path.Empty)
+
+  enum Path:
+    case Empty
+    case Segment(name: String, next: Path)
+    def append(p: Path): Path =
+      this match
+        case Empty               => p
+        case Segment(name, next) => Segment(name, next.append(p))
+
+  enum ValueTree[+A]:
+    case Empty
+    case Exchange(values: NbrMap[A], next: ValueTree[A])
+    case Call(name: String, child: ValueTree[A], next: ValueTree[A])
+
+    def values: Option[NbrMap[A]] =
+      this match
+        case Empty                   => None
+        case Exchange(values, next)  => Some(values)
+        case Call(name, child, next) => child.values.orElse(next.values)
+    def appendAtPath(p: Path, vt: ValueTree[A]): ValueTree[A] =
+      p match
+        case Path.Empty =>
+          this match
+            case Empty => Empty
+            case Exchange(values, next) =>
+              Exchange(values, next.appendAtPath(Path.Empty, vt))
+            case Call(name, child, next) =>
+              Call(name, child, next.appendAtPath(Path.Empty, vt))
+        case Path.Segment(name, next) =>
+          this match
+            case Empty => throw IllegalStateException()
+            case Exchange(values, next) =>
+              require(name == "exchange")
+              ???
+            case Call(name, child, next) => ???
+
+  import cats.free.Free
+  import cats.Id
+  import cats.~>
+
+  enum OrderedTreeGrammar[A]:
+    case Empty()
+    case Node(value: A, child: OrderedTree[A], sibling: OrderedTree[A])
+  type OrderedTree[A] = Free[OrderedTreeGrammar, A]
+  object OrderedTree:
+    import OrderedTreeGrammar.*
+    def apply[A](value: A): OrderedTree[A] = Free.pure(value)
+    def empty = Free.liftF(Empty())
+    def node[A](
+        value: A,
+        child: OrderedTree[A],
+        sibling: OrderedTree[A]
+    ): OrderedTree[A] = Free.liftF(Node(value, child, sibling))
+
+  type Tree[_]
+
+  def treeCompiler: OrderedTreeGrammar ~> ([X] =>> Id[Tree[X]]) =
+    new (OrderedTreeGrammar ~> ([X] =>> Id[Tree[X]])):
+      def apply[A](fa: OrderedTreeGrammar[A]): Id[Tree[A]] =
+        fa match
+          case OrderedTreeGrammar.Node(value, child, sibling) =>
+            val ch = child.foldMap(treeCompiler)
+            ???
+
+  def compiler: AggregateGrammar ~> Round =
+    new (AggregateGrammar ~> Round):
+      def apply[A](fa: AggregateGrammar[A]): Round[A] =
+        import AggregateGrammar.*
+        fa match
+          case Uid() => Round.uid
+          case Sensor(name) =>
+            for
+              name <- name.foldMap(compiler)
+              sensors <- Round.sensors
+            yield sensors(name).asInstanceOf[A]
+          case Self(a) =>
+            for
+              env <- Round.env
+              (output, _) = a.foldMap(compiler).run(env).run(Output.empty).value
+              _ <- ReaderT.liftF(State.set(output.cop))
+              _ <- Round.appendPath
+            yield output.valueTree.values.get(env.uid) // TODO: assertion here
+          case Exchange(init, body) => ???
+          case NFold(init, a, f)    => ???
+          case Call(f)              => ???
+          case UpdateSelf(fa, f)    => ???
+          case Map(fa, f)           => ???
+          case FlatMap(fa, f)       => ???
