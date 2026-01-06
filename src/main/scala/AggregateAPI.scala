@@ -1,58 +1,66 @@
 package aggregate
 
 object AggregateAlignment:
+  import AggregateAPI.Device
+  import orderedtree.OrderedTree.*
+
+  enum ValueTreeNode[A]:
+    case Val(values: Map[Device, A])
+    case Exchange(values: Map[Device, A])
+    case Call(id: String)
+
+  type ValueTree[A] = OrderedTree[Option[ValueTreeNode[A]]]
+
   enum AlignmentGrammar[A]:
-    case Enter(name: String) extends AlignmentGrammar[Unit]
-    case Exit() extends AlignmentGrammar[Unit]
+    case Enter() extends AlignmentGrammar[Unit]
+    case Exit(a: Option[ValueTreeNode[Any]]) extends AlignmentGrammar[Unit]
 
   import cats.free.Free
 
   type Alignment[A] = Free[AlignmentGrammar, A]
 
-  def enter(name: String) =
-    Free.liftF(AlignmentGrammar.Enter(name))
+  /** Creates and enters a new node with value a */
+  def enter =
+    Free.liftF(AlignmentGrammar.Enter())
+
+  /** Exits a node setting its value to a */
+  def exit(a: ValueTreeNode[Any]) =
+    Free.liftF(AlignmentGrammar.Exit(Some(a)))
+
+  /** Exits a node */
   def exit =
-    Free.liftF(AlignmentGrammar.Exit())
+    Free.liftF(AlignmentGrammar.Exit(None))
 
   import cats.~>
   import cats.data.State
 
-  import orderedtree.OrderedTree.*
 
-  type TreeState[A] = State[LeftToRightOrderedTreeBuilder[String], A]
-
-  object TreeState:
-    import OrderedTree.*
-    def enter(name: String): TreeState[Unit] =
-      State.modify(s => s.enter(name))
-    def exit: TreeState[Unit] =
-      State.modify(s => s.exit)
+  type TreeState[A] = State[LeftToRightOrderedTreeBuilder[Option[ValueTreeNode[Any]]], A]
 
   def compiler: AlignmentGrammar ~> TreeState =
     new (AlignmentGrammar ~> TreeState):
       def apply[A](fa: AlignmentGrammar[A]): TreeState[A] =
         import AlignmentGrammar.*
         fa match
-          case Enter(name) => TreeState.enter(name)
-          case Exit()      => TreeState.exit
-
+          case Enter() => State.modify(_.enter(None))
+          case Exit(a)      => State.modify(_.exit(a))
   @main
   def main: Unit =
     val prog = for
-      _ <- enter("sos")
-      _ <- enter("sis")
-      _ <- enter("sus")
+      _ <- enter
+      _ <- enter
+      _ <- enter
+      _ <- exit(ValueTreeNode.Exchange(Map()))
+      _ <- enter
       _ <- exit
-      _ <- enter("yey")
-      _ <- exit
-      _ <- enter("yoy")
-      _ <- enter("yoy")
+      _ <- enter
+      _ <- enter
     yield ()
 
     println:
       prog
         .foldMap(compiler)
-        .run(LeftToRightOrderedTreeBuilder.root("root"))
+        .run(LeftToRightOrderedTreeBuilder.root(Some(ValueTreeNode.Call("root"))))
         .value
         ._1
         .tree
