@@ -39,7 +39,7 @@ object OrderedTree:
       Builder(Node(value, Empty, Empty), List())
 
     extension [A](b: LeftToRightOrderedTreeBuilder[A])
-      /** Appends a new child to the node pointed by the cursos and moves the
+      /** Appends a new child to the node pointed by the cursor and moves the
         * cursor to that new child
         */
       def enter(value: A): LeftToRightOrderedTreeBuilder[A] =
@@ -52,10 +52,33 @@ object OrderedTree:
           .foldLeft(List.empty[Choice])((c, _) => c :+ Sibling)
         Builder(newTree, newCursor)
 
+      /** Sets the node pointed by cursor to value before moving the cursor up
+        * to its parent
+        */
+      def exit(value: A): LeftToRightOrderedTreeBuilder[A] =
+        b.setValue(value).exit
+
       /** Moves the cursor up to its parent */
       def exit: LeftToRightOrderedTreeBuilder[A] =
         val newCursor = b.cursor.reverse.dropWhile(_ == Sibling).drop(1).reverse
         Builder(b.tree, newCursor)
+
+      /** Sets the node pointed by cursor to value.
+        *
+        * Expects the cursor to not be set on an empty tree
+        */
+      def setValue(value: A): LeftToRightOrderedTreeBuilder[A] =
+        def helper(t: OrderedTree[A], cursor: Cursor): OrderedTree[A] =
+          t match
+            case Empty =>
+              require(cursor.isEmpty, "cursor doesn't match the tree")
+              throw IllegalArgumentException("Cannot set value on empty node")
+            case Node(v, child, sibling) =>
+              cursor match
+                case Nil          => Node(value, child, sibling)
+                case Child :: t   => Node(v, helper(child, t), sibling)
+                case Sibling :: t => Node(v, child, helper(sibling, t))
+        b.copy(tree = helper(b.tree, b.cursor))
 
       def tree: OrderedTree[A] = b.tree
 
