@@ -17,97 +17,16 @@ object AggregateAlignment:
   import cats.~>
   import cats.data.State
 
-  enum OrderedTree[+A]:
-    case Empty
-    case Node(value: A, child: OrderedTree[A], sibling: OrderedTree[A])
-    override def toString(): String =
-      this match
-        case Empty => "_"
-        case Node(value, child, sibling) =>
-          s"Node($value, ${child.toString()}, ${sibling.toString()})"
-  object OrderedTree:
-    extension [A](t: OrderedTree[A])
-      /** Expects a vaild path for appending (not inserting) */
-      def appendSiblingAtPath(s: OrderedTree[A], path: Path): OrderedTree[A] =
-        t match
-          case Empty =>
-            require(path.isEmpty, "path doesn't match the tree")
-            s
-          case Node(value, child, sibling) =>
-            path match
-              case Nil =>
-                Node(value, child, sibling.appendSiblingAtPath(s, Nil))
-              case Choice.Child :: t =>
-                Node(value, child.appendSiblingAtPath(s, t), sibling)
-              case Choice.Sibling :: t =>
-                Node(value, child, sibling.appendSiblingAtPath(s, t))
+  import orderedtree.OrderedTree.*
 
-      /** Expects a vaild path for appending (not inserting) */
-      def appendChildAtPath(c: OrderedTree[A], path: Path): OrderedTree[A] =
-        t match
-          case Empty =>
-            throw IllegalArgumentException(
-              "Can't append a child to an Empty tree"
-            )
-          case Node(value, child, sibling) =>
-            path match
-              case Nil =>
-                Node(value, child.appendSiblingAtPath(c, Nil), sibling)
-              case Choice.Child :: t =>
-                Node(value, child.appendChildAtPath(c, t), sibling)
-              case Choice.Sibling :: t =>
-                Node(value, child, sibling.appendChildAtPath(c, t))
-
-      def subtreeAtPath(path: Path): OrderedTree[A] =
-        t match
-          case Empty =>
-            require(path.isEmpty, "path doesn't match the tree")
-            Empty
-          case Node(value, child, sibling) =>
-            path match
-              case Nil                 => t
-              case Choice.Child :: t   => child.subtreeAtPath(t)
-              case Choice.Sibling :: t => sibling.subtreeAtPath(t)
-
-      def children: Seq[OrderedTree[A]] =
-        t match
-          case Empty             => Seq()
-          case Node(_, Empty, _) => Seq()
-          case Node(_, child, _) => Seq(child) ++ child.siblings
-
-      def siblings: Seq[OrderedTree[A]] =
-        t match
-          case Empty               => Seq()
-          case Node(_, _, Empty)   => Seq()
-          case Node(_, _, sibling) => Seq(sibling) ++ sibling.siblings
-
-  enum Choice:
-    case Child
-    case Sibling
-
-  type Path = List[Choice]
-
-  case class AlignmentState(tree: OrderedTree[Any], path: Path)
-  type TreeState[A] = State[AlignmentState, A]
+  type TreeState[A] = State[LeftToRightOrderedTreeBuilder[String], A]
 
   object TreeState:
     import OrderedTree.*
-    import Choice.*
     def enter(name: String): TreeState[Unit] =
-      State.modify(s =>
-        val newTree = s.tree.appendChildAtPath(Node(name, Empty, Empty), s.path)
-        val newPath = (s.path :+ Child) ++ newTree
-          .subtreeAtPath(s.path)
-          .children
-          .drop(1)
-          .foldLeft(List.empty[Choice])((p, _) => p :+ Sibling)
-        AlignmentState(newTree, newPath)
-      )
+      State.modify(s => s.enter(name))
     def exit: TreeState[Unit] =
-      State.modify(s =>
-        val newPath = s.path.reverse.dropWhile(_ == Sibling).drop(1).reverse
-        s.copy(path = newPath)
-      )
+      State.modify(s => s.exit)
 
   def compiler: AlignmentGrammar ~> TreeState =
     new (AlignmentGrammar ~> TreeState):
@@ -133,14 +52,10 @@ object AggregateAlignment:
     println:
       prog
         .foldMap(compiler)
-        .run(
-          AlignmentState(
-            OrderedTree.Node("root", OrderedTree.Empty, OrderedTree.Empty),
-            Nil
-          )
-        )
+        .run(LeftToRightOrderedTreeBuilder.root("root"))
         .value
         ._1
+        .tree
 
 trait AggregateAPI:
   type Device
