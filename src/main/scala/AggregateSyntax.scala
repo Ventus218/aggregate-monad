@@ -19,13 +19,10 @@ object AggregateSyntax extends AggregateAPI:
     // More generally this will become UpdateDevice and then we can implement this through Map
     case UpdateSelf[A, B](fa: Aggregate[A], f: A => B)
         extends AggregateGrammar[B]
-    case Map[A, B](fa: Aggregate[A], f: A => B) extends AggregateGrammar[B]
-    case FlatMap[A, B](fa: Aggregate[A], f: A => Aggregate[B])
-        extends AggregateGrammar[B]
   import AggregateGrammar.*
 
   import cats.free.Free
-  type Aggregate[A] = Free[AggregateGrammar, A]
+  opaque type Aggregate[A] = Free[AggregateGrammar, A]
 
   def sensor[A](name: Aggregate[String]): Aggregate[A] =
     Free.liftF(Sensor(name))
@@ -47,11 +44,12 @@ object AggregateSyntax extends AggregateAPI:
     Free.liftF(Uid())
 
   extension [A](fa: Aggregate[A])
+    // Re-expose flatMap and map that were hidden by using an opaque type
+    def map[B](f: A => B): Aggregate[B] = fa.map(f)
+    def flatMap[B](f: A => Aggregate[B]): Aggregate[B] = fa.flatMap(f)
+
     def self: Aggregate[A] = Free.liftF(Self(fa))
     def updateSelf(f: A => A): Aggregate[A] = Free.liftF(UpdateSelf(fa, f))
-    def map[B](f: A => B): Aggregate[B] = Free.liftF(Map(fa, f))
-    def flatMap[B](f: A => Aggregate[B]): Aggregate[B] =
-      Free.liftF(FlatMap(fa, f))
 
   given pureGiven[A]: Conversion[A, Aggregate[A]] with
     def apply(x: A): Aggregate[A] = Free.pure(x)
