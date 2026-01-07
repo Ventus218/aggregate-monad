@@ -7,6 +7,13 @@ object OrderedTree:
 
   object OrderedTree:
     extension [A](t: OrderedTree[A])
+      def isEmpty: Boolean = t == Empty
+
+      def value: Option[A] =
+        t match
+          case Empty                       => None
+          case Node(value, child, sibling) => Some(value)
+
       def children: Seq[OrderedTree[A]] =
         t match
           case Empty             => Seq()
