@@ -14,36 +14,91 @@ object AggregateAlignment:
   enum AlignmentGrammar[A]:
     case Enter() extends AlignmentGrammar[Unit]
     case Exit(a: Option[ValueTreeNode[Any]]) extends AlignmentGrammar[Unit]
+    case CurrentCursor() extends AlignmentGrammar[Cursor]
+    case AlignedDevices() extends AlignmentGrammar[Set[Device]]
+    case Input() extends AlignmentGrammar[Map[Device, ValueTree[Any]]]
 
+  // import cats.free.FreeT
+  // import cats.data.Reader
+  // type ValueTreesReader[A] = Reader[Map[Device, ValueTree[Any]], A]
+  // type Alignment[A] = FreeT[AlignmentGrammar, ValueTreesReader, A]
   import cats.free.Free
-
   type Alignment[A] = Free[AlignmentGrammar, A]
 
   /** Creates and enters a new node with value a */
-  def enter =
+  def enter: Alignment[Unit] =
     Free.liftF(AlignmentGrammar.Enter())
 
   /** Exits a node setting its value to a */
-  def exit(a: ValueTreeNode[Any]) =
+  def exit(a: ValueTreeNode[Any]): Alignment[Unit] =
     Free.liftF(AlignmentGrammar.Exit(Some(a)))
 
   /** Exits a node */
-  def exit =
+  def exit: Alignment[Unit] =
     Free.liftF(AlignmentGrammar.Exit(None))
+
+  def currentCursor: Alignment[Cursor] =
+    Free.liftF(AlignmentGrammar.CurrentCursor())
+
+  /** Gets all the devices currently aligned */
+  def alignedDevices: Alignment[Set[Device]] =
+    Free.liftF(AlignmentGrammar.AlignedDevices())
+
+  /** Gets all the messages of aligned devices */
+  def alignedMessages: Alignment[Map[Device, Any]] =
+    for messages <- Free.liftF(AlignmentGrammar.Input())
+      cursor <- currentCursor
+      tree <- 
+    yield messages.filter((d, t) => 
+      cursor.path.toList match
+        case Nil => 
+        case h :: t => 
+
+      
+      
+        ???
+        ).toMap
 
   import cats.~>
   import cats.data.State
 
+  private case class ProgramState(
+      input: Map[Device, ValueTree[Any]],
+      treeBuilder: LeftToRightOrderedTreeBuilder[Option[ValueTreeNode[Any]]]
+  )
+  private type TreeState[A] = State[ProgramState, A]
+  private object TreeState:
+    def enter: TreeState[Unit] =
+      State.modify(s => s.copy(treeBuilder = s.treeBuilder.enter(None)))
+    def exit(a: Option[ValueTreeNode[Any]]): TreeState[Unit] =
+      State.modify(s => s.copy(treeBuilder = s.treeBuilder.exit(a)))
 
-  type TreeState[A] = State[LeftToRightOrderedTreeBuilder[Option[ValueTreeNode[Any]]], A]
-
-  def compiler: AlignmentGrammar ~> TreeState =
+  private def compiler: AlignmentGrammar ~> TreeState =
     new (AlignmentGrammar ~> TreeState):
       def apply[A](fa: AlignmentGrammar[A]): TreeState[A] =
         import AlignmentGrammar.*
         fa match
-          case Enter() => State.modify(_.enter(None))
-          case Exit(a)      => State.modify(_.exit(a))
+          case Enter() => TreeState.enter
+          case Exit(a) => TreeState.exit(a)
+          case AlignedDevices() =>
+            State.inspect(s => s.input.filter((d, tree) => ???).keySet)
+
+  def run(
+      prog: Alignment[?],
+      input: Map[Device, ValueTree[Any]]
+  ): ValueTree[Any] =
+    val initProgramState = ProgramState(
+      input,
+      LeftToRightOrderedTreeBuilder.root(Some(ValueTreeNode.Call("root")))
+    )
+    prog
+      .foldMap(compiler)
+      .run(initProgramState)
+      .value
+      ._1
+      .treeBuilder
+      .tree
+
   @main
   def main: Unit =
     val prog = for
@@ -58,12 +113,7 @@ object AggregateAlignment:
     yield ()
 
     println:
-      prog
-        .foldMap(compiler)
-        .run(LeftToRightOrderedTreeBuilder.root(Some(ValueTreeNode.Call("root"))))
-        .value
-        ._1
-        .tree
+      run(prog, Map())
 
 trait AggregateAPI:
   type Device
