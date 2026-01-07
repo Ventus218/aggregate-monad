@@ -25,6 +25,18 @@ object OrderedTree:
 
   // The cursor position is the list of choices made starting from the root node
   opaque type Cursor = List[Choice]
+  extension (c: Cursor)
+    def nextChild: Cursor = c :+ Choice.Child
+    def nextSibling: Cursor = c :+ Choice.Sibling
+    def parent: Cursor =
+      // TODO: improve performance
+      c.reverse.dropWhile(_ == Choice.Sibling).drop(1).reverse
+    def path: Seq[Cursor] =
+      c.foldLeft(List[Cursor]())((list, choice) =>
+        list match
+          case Nil  => List(List(choice))
+          case list => list :+ (list.last :+ choice)
+      )
 
   opaque type LeftToRightOrderedTreeBuilder[A] = Builder[A]
   private case class Builder[A](tree: OrderedTree[A], cursor: Cursor)
@@ -60,8 +72,7 @@ object OrderedTree:
 
       /** Moves the cursor up to its parent */
       def exit: LeftToRightOrderedTreeBuilder[A] =
-        val newCursor = b.cursor.reverse.dropWhile(_ == Sibling).drop(1).reverse
-        Builder(b.tree, newCursor)
+        Builder(b.tree, b.cursor.parent)
 
       /** Sets the node pointed by cursor to value.
         *
@@ -81,6 +92,7 @@ object OrderedTree:
         b.copy(tree = helper(b.tree, b.cursor))
 
       def tree: OrderedTree[A] = b.tree
+      def cursor: Cursor = b.cursor
 
     extension [A](t: OrderedTree[A])
       /** Expects a vaild cursor for appending (not inserting) */
