@@ -14,6 +14,9 @@ object AggregateAlignment:
   import cats.free.Free
   opaque type Alignment[A] = Free[AlignmentGrammar, A]
 
+  private[free] given cats.Monad[Alignment] =
+    summon[cats.Monad[[A] =>> Free[AlignmentGrammar, A]]]
+
   // Re-expose flatMap and map that were hidden by using an opaque type
   extension [A](fa: Alignment[A])
     def flatMap[B](f: A => Alignment[B]): Alignment[B] =
