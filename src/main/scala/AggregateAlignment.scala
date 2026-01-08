@@ -44,9 +44,9 @@ object AggregateAlignment:
   private type Path = List[String]
 
   private case class BuildingPathState(path: Path, levelCounter: Map[Int, Int])
-  private type TreeState[A] = StateT[AggregateInput, BuildingPathState, A]
-  private object TreeState:
-    def enter(id: String): TreeState[Unit] =
+  private type AlignmentState[A] = StateT[AggregateInput, BuildingPathState, A]
+  private object AlignmentState:
+    def enter(id: String): AlignmentState[Unit] =
       StateT.modify(s =>
         def helper(path: Path, level: Int = 0): (Path, Map[Int, Int]) =
           path match
@@ -63,7 +63,7 @@ object AggregateAlignment:
         BuildingPathState(newPath, newLevelCounter)
       )
 
-    def exit: TreeState[Unit] =
+    def exit: AlignmentState[Unit] =
       StateT.modify(s =>
         if s.path.isEmpty then
           throw IllegalStateException("Cannot exit an empty path")
@@ -84,13 +84,13 @@ object AggregateAlignment:
             .collect({ case Some(value) => value })
             .headOption
 
-    def alignedDevices: TreeState[Set[Device]] =
+    def alignedDevices: AlignmentState[Set[Device]] =
       for
         messages <- StateT.liftF(AggregateInput.messages)
         path <- StateT.inspect[AggregateInput, BuildingPathState, Path](_.path)
       yield messages.filter((_, t) => subtreeFromPath(t, path).isDefined).keySet
 
-    def alignedMessages: TreeState[Map[Device, Any]] =
+    def alignedMessages: AlignmentState[Map[Device, Any]] =
       for
         messages <- StateT.liftF(AggregateInput.messages)
         path <- StateT.inspect[AggregateInput, BuildingPathState, Path](_.path)
@@ -99,15 +99,15 @@ object AggregateAlignment:
         .collect({ case (d, Some(t)) => (d, t.value._2) })
         .toMap
 
-  private def compiler: AlignmentGrammar ~> TreeState =
-    new (AlignmentGrammar ~> TreeState):
-      def apply[A](fa: AlignmentGrammar[A]): TreeState[A] =
+  private def compiler: AlignmentGrammar ~> AlignmentState =
+    new (AlignmentGrammar ~> AlignmentState):
+      def apply[A](fa: AlignmentGrammar[A]): AlignmentState[A] =
         import AlignmentGrammar.*
         fa match
-          case Enter(id)         => TreeState.enter(id)
-          case Exit()            => TreeState.exit
-          case AlignedDevices()  => TreeState.alignedDevices
-          case AlignedMessages() => TreeState.alignedMessages
+          case Enter(id)         => AlignmentState.enter(id)
+          case Exit()            => AlignmentState.exit
+          case AlignedDevices()  => AlignmentState.alignedDevices
+          case AlignedMessages() => AlignmentState.alignedMessages
 
   extension [A](prog: Alignment[A])
     def run(
