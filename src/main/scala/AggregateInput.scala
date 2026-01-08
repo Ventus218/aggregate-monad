@@ -16,8 +16,7 @@ object AggregateInput:
   import cats.free.Free
   opaque type AggregateInput[A] = Free[AggregateInputGrammar, A]
 
-  // TODO: Make private [free]
-  given cats.Monad[AggregateInput] =
+  private[free] given cats.Monad[AggregateInput] =
     summon[cats.Monad[[A] =>> Free[AggregateInputGrammar, A]]]
 
   // Re-expose flatMap and map that were hidden by using an opaque type
