@@ -10,6 +10,8 @@ object AggregateAlignment:
     case Exit() extends AlignmentGrammar[Unit]
     case AlignedDevices() extends AlignmentGrammar[Set[Device]]
     case AlignedMessages() extends AlignmentGrammar[Map[Device, Any]]
+    case Uid() extends AlignmentGrammar[Device]
+    case Sensor(name: String)
 
   import cats.free.Free
   opaque type Alignment[A] = Free[AlignmentGrammar, A]
@@ -24,21 +26,28 @@ object AggregateAlignment:
     def map[B](f: A => B): Alignment[B] =
       fa.map(f)
 
-  def enter(id: String): Alignment[Unit] =
-    Free.liftF(AlignmentGrammar.Enter(id))
+  object Alignment:
+    def enter(id: String): Alignment[Unit] =
+      Free.liftF(AlignmentGrammar.Enter(id))
 
-  def exit: Alignment[Unit] =
-    Free.liftF(AlignmentGrammar.Exit())
+    def exit: Alignment[Unit] =
+      Free.liftF(AlignmentGrammar.Exit())
 
-  def alignedDevices: Alignment[Set[Device]] =
-    Free.liftF(AlignmentGrammar.AlignedDevices())
+    def alignedDevices: Alignment[Set[Device]] =
+      Free.liftF(AlignmentGrammar.AlignedDevices())
 
-  def alignedMessages[A]: Alignment[Map[Device, A]] =
-    Free.liftF(
-      AlignmentGrammar
-        .AlignedMessages()
-        .asInstanceOf[AlignmentGrammar[Map[Device, A]]]
-    )
+    def alignedMessages[A]: Alignment[Map[Device, A]] =
+      Free.liftF(
+        AlignmentGrammar
+          .AlignedMessages()
+          .asInstanceOf[AlignmentGrammar[Map[Device, A]]]
+      )
+
+    def uid: Alignment[Device] =
+      Free.liftF(AlignmentGrammar.Uid())
+
+    def sensor[A](name: String): Alignment[A] =
+      Free.liftF(AlignmentGrammar.Sensor(name))
 
   import cats.~>
   import cats.data.StateT
@@ -102,6 +111,8 @@ object AggregateAlignment:
           case Exit()            => AlignmentState.exit
           case AlignedDevices()  => AlignmentState.alignedDevices
           case AlignedMessages() => AlignmentState.alignedMessages
+          case Uid()             => StateT.liftF(AggregateInput.uid)
+          case Sensor(name)      => StateT.liftF(AggregateInput.sensor(name))
 
   extension [A](prog: Alignment[A])
     def run(
