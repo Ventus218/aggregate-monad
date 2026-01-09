@@ -3,127 +3,87 @@ package orderedtree
 object OrderedTree:
   case class OrderedTree[+A](value: A, children: Seq[OrderedTree[A]])
 
+  // Each element is the child to follow (empty list means current node)
+  opaque type Cursor = List[Int]
 
-  // private enum Choice:
-  //   case Child
-  //   case Sibling
-  //
-  // // The cursor position is the list of choices made starting from the root node
-  // opaque type Cursor = List[Choice]
-  // extension (c: Cursor)
-  //   def nextChild: Cursor = c :+ Choice.Child
-  //   def nextSibling: Cursor = c :+ Choice.Sibling
-  //   def parent: Cursor =
-  //     // TODO: improve performance
-  //     c.reverse.dropWhile(_ == Choice.Sibling).drop(1).reverse
-  //   def path: Seq[Cursor] =
-  //     c.foldLeft(List[Cursor]())((list, choice) =>
-  //       list match
-  //         case Nil  => List(List(choice))
-  //         case list => list :+ (list.last :+ choice)
-  //     )
-  //
-  // opaque type LeftToRightOrderedTreeBuilder[A] = Builder[A]
-  // private case class Builder[A](tree: OrderedTree[A], cursor: Cursor)
-  //
-  // object LeftToRightOrderedTreeBuilder:
-  //   // TODO: check performance and stack safe recursion
-  //
-  //   import OrderedTree.*
-  //   import Choice.*
-  //
-  //   def root[A](value: A): LeftToRightOrderedTreeBuilder[A] =
-  //     Builder(Node(value, Empty, Empty), List())
-  //
-  //   extension [A](b: LeftToRightOrderedTreeBuilder[A])
-  //     /** Appends a new child to the node pointed by the cursor and moves the
-  //       * cursor to that new child
-  //       */
-  //     def enter(value: A): LeftToRightOrderedTreeBuilder[A] =
-  //       val newTree =
-  //         b.tree.appendChildAtCursor(Node(value, Empty, Empty), b.cursor)
-  //       val newCursor = (b.cursor :+ Child) ++ newTree
-  //         .subtreeAtCursor(b.cursor)
-  //         .children
-  //         .drop(1)
-  //         .foldLeft(List.empty[Choice])((c, _) => c :+ Sibling)
-  //       Builder(newTree, newCursor)
-  //
-  //     /** Sets the node pointed by cursor to value before moving the cursor up
-  //       * to its parent
-  //       */
-  //     def exit(value: A): LeftToRightOrderedTreeBuilder[A] =
-  //       b.setValue(value).exit
-  //
-  //     /** Moves the cursor up to its parent */
-  //     def exit: LeftToRightOrderedTreeBuilder[A] =
-  //       Builder(b.tree, b.cursor.parent)
-  //
-  //     /** Sets the node pointed by cursor to value.
-  //       *
-  //       * Expects the cursor to not be set on an empty tree
-  //       */
-  //     def setValue(value: A): LeftToRightOrderedTreeBuilder[A] =
-  //       def helper(t: OrderedTree[A], cursor: Cursor): OrderedTree[A] =
-  //         t match
-  //           case Empty =>
-  //             require(cursor.isEmpty, "cursor doesn't match the tree")
-  //             throw IllegalArgumentException("Cannot set value on empty node")
-  //           case Node(v, child, sibling) =>
-  //             cursor match
-  //               case Nil          => Node(value, child, sibling)
-  //               case Child :: t   => Node(v, helper(child, t), sibling)
-  //               case Sibling :: t => Node(v, child, helper(sibling, t))
-  //       b.copy(tree = helper(b.tree, b.cursor))
-  //
-  //     def tree: OrderedTree[A] = b.tree
-  //     def cursor: Cursor = b.cursor
-  //
-  //   extension [A](t: OrderedTree[A])
-  //     /** Expects a vaild cursor for appending (not inserting) */
-  //     private def appendSiblingAtCursor(
-  //         s: OrderedTree[A],
-  //         cursor: Cursor
-  //     ): OrderedTree[A] =
-  //       t match
-  //         case Empty =>
-  //           require(cursor.isEmpty, "cursor doesn't match the tree")
-  //           s
-  //         case Node(value, child, sibling) =>
-  //           cursor match
-  //             case Nil =>
-  //               Node(value, child, sibling.appendSiblingAtCursor(s, Nil))
-  //             case Choice.Child :: t =>
-  //               Node(value, child.appendSiblingAtCursor(s, t), sibling)
-  //             case Choice.Sibling :: t =>
-  //               Node(value, child, sibling.appendSiblingAtCursor(s, t))
-  //
-  //     /** Expects a vaild cursor for appending (not inserting) */
-  //     private def appendChildAtCursor(
-  //         c: OrderedTree[A],
-  //         cursor: Cursor
-  //     ): OrderedTree[A] =
-  //       t match
-  //         case Empty =>
-  //           throw IllegalArgumentException(
-  //             "Can't append a child to an Empty tree"
-  //           )
-  //         case Node(value, child, sibling) =>
-  //           cursor match
-  //             case Nil =>
-  //               Node(value, child.appendSiblingAtCursor(c, Nil), sibling)
-  //             case Choice.Child :: t =>
-  //               Node(value, child.appendChildAtCursor(c, t), sibling)
-  //             case Choice.Sibling :: t =>
-  //               Node(value, child, sibling.appendChildAtCursor(c, t))
-  //
-  //     private def subtreeAtCursor(cursor: Cursor): OrderedTree[A] =
-  //       t match
-  //         case Empty =>
-  //           require(cursor.isEmpty, "cursor doesn't match the tree")
-  //           Empty
-  //         case Node(value, child, sibling) =>
-  //           cursor match
-  //             case Nil                 => t
-  //             case Choice.Child :: t   => child.subtreeAtCursor(t)
-  //             case Choice.Sibling :: t => sibling.subtreeAtCursor(t)
+  opaque type LeftToRightOrderedTreeBuilder[A] = Builder[A]
+  private case class Builder[A](tree: OrderedTree[A], cursor: Cursor)
+
+  object LeftToRightOrderedTreeBuilder:
+    // TODO: check performance and stack safe recursion
+
+    import OrderedTree.*
+
+    def root[A](value: A): LeftToRightOrderedTreeBuilder[A] =
+      Builder(OrderedTree(value, Seq()), List())
+
+    extension [A](b: LeftToRightOrderedTreeBuilder[A])
+      private def throwCursorDoesNotBelongToTree: Nothing =
+        throw IllegalArgumentException("cursor doesn't belong to tree")
+
+      /** Appends a new child to the node pointed by the cursor and moves the
+        * cursor to that new child
+        */
+      def enter(value: A): LeftToRightOrderedTreeBuilder[A] =
+        def helper(
+            t: OrderedTree[A],
+            cursor: Cursor
+        ): (OrderedTree[A], Cursor) =
+          cursor match
+            case Nil =>
+              val res =
+                t.copy(children = t.children :+ OrderedTree(value, Seq()))
+              (res, b.cursor :+ res.children.length)
+            case index :: next =>
+              t.children.lift(index) match
+                case None => throwCursorDoesNotBelongToTree
+                case Some(child) =>
+                  val (newChild, newCursor) = helper(child, next)
+                  (
+                    t.copy(children = t.children.updated(index, newChild)),
+                    newCursor
+                  )
+        val (newTree, newCursor) = helper(b.tree, b.cursor)
+        Builder(newTree, newCursor)
+
+      /** Sets the node pointed by cursor to value before moving the cursor up
+        * to its parent
+        */
+      def exit(value: A): LeftToRightOrderedTreeBuilder[A] =
+        b.setValue(value).exit
+
+      /** Moves the cursor up to its parent */
+      def exit: LeftToRightOrderedTreeBuilder[A] =
+        require(b.cursor.length > 0, "can't exit, cursor already at root")
+        Builder(b.tree, b.cursor.dropRight(1))
+
+      /** Sets the node pointed by cursor to value.
+        *
+        * Expects the cursor to not be set on an empty tree
+        */
+      def setValue(value: A): LeftToRightOrderedTreeBuilder[A] =
+        def helper(t: OrderedTree[A], cursor: Cursor): OrderedTree[A] =
+          cursor match
+            case Nil =>
+              t.copy(value = value)
+            case index :: next =>
+              t.children.lift(index) match
+                case None => throwCursorDoesNotBelongToTree
+                case Some(child) =>
+                  t.copy(children =
+                    t.children.updated(index, helper(child, next))
+                  )
+        b.copy(tree = helper(b.tree, b.cursor))
+
+      def valueAtCursor: A =
+        def helper(t: OrderedTree[A], cursor: Cursor): A =
+          cursor match
+            case Nil => t.value
+            case index :: next =>
+              t.children.lift(index) match
+                case None        => throwCursorDoesNotBelongToTree
+                case Some(child) => helper(child, next)
+        helper(b.tree, b.cursor)
+
+      def tree: OrderedTree[A] = b.tree
+      def cursor: Cursor = b.cursor
