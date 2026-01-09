@@ -46,24 +46,15 @@ object AggregateAlignment:
   type AlignmentTree[A] = OrderedTree[(String, A)]
   private type Path = List[String]
 
-  private case class BuildingPathState(path: Path, levelCounter: Map[Int, Int])
+  private case class BuildingPathState(path: Path, pathCounter: Map[Path, Int])
   private type AlignmentState[A] = StateT[AggregateInput, BuildingPathState, A]
   private object AlignmentState:
     def enter(id: String): AlignmentState[Unit] =
       StateT.modify(s =>
-        def helper(path: Path, level: Int = 0): (Path, Map[Int, Int]) =
-          path match
-            case Nil =>
-              (
-                List(s"$id${s.levelCounter(level)}"),
-                s.levelCounter.updatedWith(level)(_.map(_ + 1))
-              )
-            case prev :: tail =>
-              val (path, newLevelCounter) = helper(tail, level + 1)
-              (prev +: path, newLevelCounter)
-
-        val (newPath, newLevelCounter) = helper(s.path)
-        BuildingPathState(newPath, newLevelCounter)
+        val pathCounter = s.pathCounter.get(s.path).getOrElse(0)
+        val newPath = s.path :+ s"$id-$pathCounter"
+        val newPathCounter = s.pathCounter.updated(s.path, pathCounter + 1)
+        BuildingPathState(newPath, newPathCounter)
       )
 
     def exit: AlignmentState[Unit] =
