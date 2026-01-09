@@ -7,7 +7,7 @@ trait AggregateAPI:
   def sensor[A](name: Aggregate[String]): Aggregate[A]
   // TODO: recheck
   def call[A](f: Aggregate[() => Aggregate[A]]): Aggregate[A]
-  def exchange[A, S](init: Aggregate[S])(
+  def exchange[A, S](default: Aggregate[S])(
       f: Aggregate[S] => (Aggregate[A], Aggregate[S])
   ): Aggregate[A]
 

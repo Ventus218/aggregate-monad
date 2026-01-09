@@ -7,7 +7,7 @@ object AggregateSyntax extends AggregateAPI:
 
   private[free] enum AggregateGrammar[A]:
     case Exchange[A, S](
-        init: Aggregate[S],
+        default: Aggregate[S],
         body: Aggregate[S] => (Aggregate[A], Aggregate[S])
     ) extends AggregateGrammar[A]
     case NFold[A, B](init: Aggregate[A], a: Aggregate[B], f: (A, B) => A)
