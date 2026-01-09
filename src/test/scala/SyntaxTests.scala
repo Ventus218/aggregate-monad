@@ -1,4 +1,4 @@
-import aggregate.AggregateAPI.*
+import aggregate.AggregateAPI.{given, *}
 import aggregate.AggregateLib.*
 import scala.language.implicitConversions
 

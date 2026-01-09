@@ -30,7 +30,22 @@ trait AggregateAPI:
 
 object AggregateAPI extends AggregateAPI:
   import aggregate.free.AggregateSyntax
-  export AggregateSyntax.{given, *}
+
+  opaque type Device = Int
+  export AggregateSyntax.{
+    Aggregate,
+    sensor,
+    call,
+    exchange,
+    nfold,
+    uid,
+    self,
+    updateSelf,
+    map,
+    flatMap
+  }
+
+  given pureGiven[A]: Conversion[A, Aggregate[A]] = Aggregate.apply
 
 trait AggregateLib:
   import AggregateAPI.*
