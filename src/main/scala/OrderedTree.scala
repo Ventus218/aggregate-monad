@@ -1,7 +1,7 @@
 package orderedtree
 
 object OrderedTree:
-  case class OrderedTree[+A](value: A, children: Seq[OrderedTree[A]])
+  case class OrderedTree[+A](value: A, children: Seq[OrderedTree[A]] = Seq())
 
   // Each element is the child to follow (empty list means current node)
   opaque type Cursor = List[Int]

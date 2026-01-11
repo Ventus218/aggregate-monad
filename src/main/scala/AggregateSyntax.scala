@@ -1,10 +1,8 @@
 package aggregate.free
 
-import aggregate.AggregateAPI.Device
-import orderedtree.OrderedTree.LeftToRightOrderedTreeBuilder
-import aggregate.free.AggregateAlignment.Alignment.alignedMessages
-
 object AggregateSyntax:
+  import aggregate.NValues.*
+  import aggregate.AggregateAPI.Device
   private enum AggregateGrammar[A]:
     case Exchange[A, S](
         default: Aggregate[S],
@@ -12,7 +10,7 @@ object AggregateSyntax:
     ) extends AggregateGrammar[A]
     case NFold[A, B](init: Aggregate[A], a: Aggregate[B], f: (A, B) => A)
         extends AggregateGrammar[A]
-    case Call(f: Aggregate[() => Aggregate[A]])
+    case Call(f: () => Aggregate[A])
     case Sensor(name: Aggregate[String])
     case Uid() extends AggregateGrammar[Device]
     case Self(a: Aggregate[A])
@@ -21,6 +19,8 @@ object AggregateSyntax:
         extends AggregateGrammar[B]
     case Pure(nvalues: NValue[A])
     case Map_[A, B](a: Aggregate[A], f: A => B) extends AggregateGrammar[B]
+    case PoinwiseOp[A, B](a: Aggregate[A], b: Aggregate[A], f: (A, A) => B)
+        extends AggregateGrammar[B]
   import AggregateGrammar.*
 
   import cats.free.Free
@@ -30,14 +30,13 @@ object AggregateSyntax:
     def apply[A](a: A): Aggregate[A] = Free.liftF(Pure(NValue(a)))
 
   extension [A](fa: Aggregate[A])
-    // Re-expose flatMap and map that were hidden by using an opaque type
+    // Re-expose map that was hidden by using an opaque type
     def map[B](f: A => B): Aggregate[B] = fa.map(f)
-    def flatMap[B](f: A => Aggregate[B]): Aggregate[B] = fa.flatMap(f)
 
   def sensor[A](name: Aggregate[String]): Aggregate[A] =
     Free.liftF(Sensor(name))
 
-  def call[A](f: Aggregate[() => Aggregate[A]]): Aggregate[A] =
+  def call[A](f: () => Aggregate[A]): Aggregate[A] =
     Free.liftF(Call(f))
 
   def exchange[A, S](default: Aggregate[S])(
@@ -59,72 +58,165 @@ object AggregateSyntax:
 
   import AggregateAlignment.*
   import cats.data.StateT
+  import cats.data.Reader
   import cats.~>
 
-  private case class NValue[+A](default: A, values: Map[Device, A] = Map())
-  private type Compiled[A] =
-    StateT[Alignment, LeftToRightOrderedTreeBuilder[NValue[Any]], A]
-  private object Compiled:
-    def enter[A](nvalue: NValue[A]): Compiled[Unit] =
-      StateT.modify(_.enter(nvalue))
-    def exit: Compiled[Unit] =
-      StateT.modify(_.exit)
+  case class Input(
+      uid: Device,
+      sensors: Map[String, NValue[Any]],
+      messages: Map[Device, ValueTree[Any]]
+  )
 
-  private def compiler: AggregateGrammar ~> Compiled =
-    new (AggregateGrammar ~> Compiled):
-      def apply[A](fa: AggregateGrammar[A]): Compiled[A] =
+  private type InputReader[A] = Reader[Input, A]
+  // private enum ValueTreeState[+A]:
+  //   case Empty
+  //   case VT(valueTree: ValueTree[A], path: Path)
+  // // TODO: check if we can add a type param B and make ValueTreeState typed
+  // private type AggregateImpl[A] = StateT[InputReader, ValueTreeState[Any], A]
+  //
+  // extension (a: AggregateImpl[?])
+  //   private def _run(input: Input): ValueTreeState[Any] =
+  //     a.runS(ValueTreeState.Empty).run(input)
+  //
+  // private object AggregateImpl:
+  //   extension [A](o: Option[A])
+  //     def getOrThrowInvalidPath: A =
+  //       o match
+  //         case Some(value) => value
+  //         case None =>
+  //           throw IllegalArgumentException("tree doesn't contain path")
+  //
+  //   def exit(nv: NValue[?]): AggregateImpl[Unit] =
+  //     StateT.modify(s =>
+  //       s match
+  //         case ValueTreeState.Empty => s
+  //         case ValueTreeState.VT(valueTree, path) =>
+  //           val vt = valueTree.setNValueAt(nv, path).getOrThrowInvalidPath
+  //           ValueTreeState.VT(vt, path.exit)
+  //     )
+  //   def enter: AggregateImpl[Unit] =
+  //     // StateT.modify(s =>
+  //     //   s match
+  //     //     case ValueTreeState.Empty =>
+  //     //       ValueTreeState.VT(ValueTree.node(null), path.)
+  //     //     case ValueTreeState.VT(valueTree, path) =>
+  //     //       val vt = valueTree.setNValueAt(nv, path).getOrThrowInvalidPath
+  //     //       ValueTreeState.VT(vt, path.exit)
+  //     // )
+  //     ???
+  //
+  //   def node[A](
+  //       nv: NValue[A],
+  //       children: Seq[ValueTree[A]] = Seq()
+  //   ): AggregateImpl[Unit] =
+  //     StateT.set(ValueTreeState.VT(ValueTree.node(nv, children), Path.empty))
+  //
+  //   def call[A](
+  //       id: String,
+  //       nv: NValue[A],
+  //       children: Seq[ValueTree[A]] = Seq()
+  //   ): AggregateImpl[Unit] =
+  //     StateT.set(
+  //       ValueTreeState.VT(ValueTree.call(id, nv, children), Path.empty)
+  //     )
+  //
+  //   // def call[A](id: String, f: () => Aggregate[A]): AggregateImpl[Unit] =
+  //   //   StateT.modify(s =>
+  //   //     s match
+  //   //       case ValueTreeState.Empty =>
+  //   //         ValueTreeState.VT(ValueTree.node(nv), Path.empty)
+  //   //       case ValueTreeState.VT(valueTree, path) =>
+  //   //         val (newVt, newPath) =
+  //   //           valueTree.appendNodeAt(nv, path).getOrThrowInvalidPath
+  //   //         ValueTreeState.VT(newVt, newPath)
+  //   //   )
+  //
+  //   def input: AggregateImpl[Input] =
+  //     StateT.liftF(Reader(identity))
+  //
+  //   def uid: AggregateImpl[Device] =
+  //     for input <- input
+  //     yield input.uid
+  //
+  //   def messages: AggregateImpl[Map[Device, ValueTree[Any]]] =
+  //     for input <- input
+  //     yield input.messages
+  //
+  //   def sensor[A](name: Aggregate[String]): AggregateImpl[Unit] =
+  //     for
+  //       name <- name.self.foldMap(compiler)
+  //       sensors <- StateT.liftF(Reader((_: Input).sensors))
+  //       // TODO: only aligned devices??
+  //       _ <- nValueNode(sensors(name))
+  //     yield ()
+  //
+  //   // def alignedDevices: AggregateImpl[Set[Device]] =
+  //   //   for
+  //   //     messages <- messages
+  //   //     path <- ???
+  //   //   yield messages.filter((d, t) => t.subtreeAt(???))
+
+  import cats.data.ReaderT
+  import cats.data.Cont
+  type ValueTreeCont[A] = Cont[ValueTree[Any], A]
+  type AggregateImpl[A] = ReaderT[ValueTreeCont, Input, A]
+
+  object AggregateImpl:
+    def input: AggregateImpl[Input] =
+      ReaderT.ask
+    def uid: AggregateImpl[Device] =
+      input.map(_.uid)
+    def sensors: AggregateImpl[Map[String, NValue[Any]]] =
+      input.map(_.sensors)
+    def leaf(a: NValue[Any]): AggregateImpl[ValueTree[Any]] =
+      ReaderT.liftF(
+        Cont(next => next(ValueTree.node(a)))
+      )
+
+  private def compiler: AggregateGrammar ~> AggregateImpl =
+    new (AggregateGrammar ~> AggregateImpl):
+      def apply[A](fa: AggregateGrammar[A]): AggregateImpl[A] =
         import AggregateGrammar.*
         fa match
-          case Exchange(default, body) =>
+          case Exchange(default, body) => ???
+          case NFold(init, a, f)       => ???
+          case Call(f)                 => ???
+          case Sensor(name)            => ???
+          case Uid() =>
             for
-              default <- default.self.foldMap(compiler)
-              alignedMessages <- StateT.liftF(
-                Alignment.alignedMessages[default.type]
-              )
-              res = body(
-                Free
-                  .liftF(Pure(NValue(default, alignedMessages)))
-              )
-              ret <- res._1.foldMap(compiler)
-              send <- res._2.foldMap(compiler)
-            yield ret
-          case NFold(init, a, f) =>
-            for
-              init <- init.self.foldMap(compiler)
-              a <- a.foldMap(compiler)
-              messages <- StateT.liftF(Alignment.alignedMessages[a.type])
-            yield messages.values.foldLeft(init)((acc, elem) => f(acc, elem))
-          case Call(f)           => ???
-          case UpdateSelf(fa, f) => ???
+              uid <- AggregateImpl.uid
+              _ <- AggregateImpl.leaf(NValue(uid))
+            yield uid
           case Self(a)           => ???
-          case Uid()             => StateT.liftF(Alignment.uid)
-          case Sensor(name) =>
+          case UpdateSelf(fa, f) => ???
+          case Pure(nvalues) =>
             for
-              name <- name.self.foldMap(compiler)
-              res <- StateT.liftF(Alignment.sensor(name))
-            yield res.asInstanceOf[A]
-          case Pure(nvalue) =>
-            for
-              _ <- Compiled.enter(nvalue)
-              _ <- Compiled.exit
-            yield ???
-          case Map_(a, f) =>
+              input <- AggregateImpl.input
+              _ <- AggregateImpl.nValueNode(nvalues)
+              _ <- AggregateImpl.exit
+            yield (nvalues(input.uid))
+          case PoinwiseOp(a, b, f) =>
             for
               a <- a.foldMap(compiler)
-              messages <- StateT.liftF(Alignment.alignedMessages[a.type])
-              mapped = messages.view.mapValues(f)
+              b <- b.foldMap(compiler)
             yield ???
+          case Map_(a, f) => ???
+
   extension [A](prog: Aggregate[A])
-    def run(
-        uid: Device,
-        sensors: Map[String, Any],
-        messages: Map[Device, AlignmentTree[Any]]
-    ) =
-      val sos = prog
+    def myrun(input: Input): (ValueTree[Any], A) =
+      val (valueTreeState, output) = prog
         .foldMap(compiler)
-        // TODO: null is ugly
-        .runA(LeftToRightOrderedTreeBuilder.root(NValue(null)))
-        .run(uid, sensors, messages)
+        .run(ValueTreeState.Empty)
+        .run(input)
+      valueTreeState.match
+        case ValueTreeState.Empty => ??? // Program was empty???
+        case ValueTreeState.VT(valueTree, path) =>
+          (valueTree, output)
+
+  // @main def main: Unit =
+  //   println:
+  //     uid.myrun(Input(Device.fromInt(3), Map(), Map()))
+
 //
 // object Utils:
 //   import AggregateSyntax.*
