@@ -6,7 +6,7 @@ trait AggregateAPI:
 
   def sensor[A](name: Aggregate[String]): Aggregate[A]
   // TODO: recheck
-  def call[A](f: Aggregate[() => Aggregate[A]]): Aggregate[A]
+  def call[A](f: () => Aggregate[A]): Aggregate[A]
   def exchange[A, S](default: Aggregate[S])(
       f: Aggregate[S] => (Aggregate[A], Aggregate[S])
   ): Aggregate[A]
@@ -22,9 +22,7 @@ trait AggregateAPI:
     def self: Aggregate[A]
     def updateSelf(f: A => A): Aggregate[A]
 
-  extension [A](fa: Aggregate[A])
-    def map[B](f: A => B): Aggregate[B]
-    def flatMap[B](f: A => Aggregate[B]): Aggregate[B]
+  extension [A](fa: Aggregate[A]) def map[B](f: A => B): Aggregate[B]
 
   given pureGiven[A]: Conversion[A, Aggregate[A]]
 
@@ -41,9 +39,11 @@ object AggregateAPI extends AggregateAPI:
     uid,
     self,
     updateSelf,
-    map,
-    flatMap
+    map
   }
+
+  object Device:
+    def fromInt(i: Int): Device = i
 
   given pureGiven[A]: Conversion[A, Aggregate[A]] = Aggregate.apply
 
