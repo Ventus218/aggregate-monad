@@ -1,12 +1,11 @@
 package aggregate.nonfree
 
-import aggregate.AggregateAPI
 import aggregate.AggregateAPI.Device
 import aggregate.NValues.NValue
 
-object SimpleEffect:
-  opaque type Aggregate[+A] = AggregateImpl[A]
-  private enum AggregateImpl[+A]:
+object AggregateImpl:
+  opaque type Aggregate[+A] = Grammar[A]
+  private enum Grammar[+A]:
     case Exchange[A, S](
         default: Aggregate[S],
         body: Aggregate[S] => (Aggregate[A], Aggregate[S])
@@ -25,7 +24,7 @@ object SimpleEffect:
     case PointwiseOp[A, B](a: Aggregate[A], b: Aggregate[A], f: (A, A) => B)
         extends Aggregate[B]
 
-  import AggregateImpl.*
+  import Grammar.*
 
   def sensor[A](name: Aggregate[String]): Aggregate[A] =
     Sensor(name)

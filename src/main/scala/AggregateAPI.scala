@@ -36,7 +36,7 @@ trait AggregateAPI:
 
 object AggregateAPI extends AggregateAPI:
   opaque type Device = Int
-  export aggregate.nonfree.SimpleEffect.{
+  export aggregate.nonfree.AggregateImpl.{
     Aggregate,
     sensor,
     call,
@@ -51,7 +51,7 @@ object AggregateAPI extends AggregateAPI:
   }
 
   given pureGiven[A]: Conversion[A, Aggregate[A]] =
-    aggregate.nonfree.SimpleEffect.pureGiven
+    aggregate.nonfree.AggregateImpl.pureGiven
 
   object Device:
     def fromInt(i: Int): Device = i
