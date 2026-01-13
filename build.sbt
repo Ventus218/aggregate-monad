@@ -11,5 +11,6 @@ lazy val root = project
     libraryDependencies += "org.typelevel" %% "cats-core" % catsVersion,
     libraryDependencies += "org.typelevel" %% "cats-kernel" % catsVersion,
     libraryDependencies += "org.typelevel" %% "cats-free" % catsVersion,
-    libraryDependencies += "org.scalatest" %% "scalatest" % "3.2.19" % Test
+    libraryDependencies += "org.scalatest" %% "scalatest" % "3.2.19" % Test,
+    libraryDependencies += "org.scalacheck" %% "scalacheck" % "1.17.0"
   )
