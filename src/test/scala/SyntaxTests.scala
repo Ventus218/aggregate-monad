@@ -20,8 +20,6 @@ def average(
     weight: Aggregate[Float],
     value: Aggregate[Float]
 ): Aggregate[Float] =
-  // TODO: is this safe? what if i receive message from a device
-  // in the first nbr but don't receive any in the second nbr ??
   val totW = nfold(weight)(nbr(0f, weight))(_ + _)
   val totVl = nfold(weight * value)(nbr(0f, weight * value))(_ + _)
   totVl / totW
@@ -73,10 +71,7 @@ def dilate(
     region: Aggregate[Boolean],
     width: Aggregate[Float]
 ): Aggregate[Boolean] =
-  for
-    dist <- gradient(region)
-    width <- width
-  yield dist < width
+  gradient(region) < width
 
 def distance(
     from: Aggregate[Boolean],
