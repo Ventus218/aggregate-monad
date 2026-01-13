@@ -5,6 +5,15 @@ object NValues:
   case class NValue[+A](default: A, values: Map[Device, A] = Map()):
     def apply(d: Device): A = values.get(d).getOrElse(default)
 
+  extension [A](nv: NValue[A])
+    def set(d: Device, value: A): NValue[A] = 
+      NValue(nv.default, nv.values.updated(d, value))
+    def setWith(d: Device, f: A => A): NValue[A] = 
+      val value = f(nv(d))
+      NValue(nv.default, nv.values.updated(d, value))
+    def map[B](f: A => B): NValue[B] = 
+      NValue(f(nv.default), nv.values.view.mapValues(f).toMap)
+
   opaque type Path = List[Choice]
   private enum Choice:
     case ChildNode(nChild: Int)
