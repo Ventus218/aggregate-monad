@@ -1,4 +1,4 @@
-package aggregate.simple
+package aggregate.nonfree
 
 import aggregate.AggregateAPI
 import aggregate.AggregateAPI.Device
