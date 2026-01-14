@@ -159,9 +159,9 @@ object AggregateImpl:
         case NFold(init, a, f) =>
           val initTree = init.run(using input.restrictToChildN(0))
           val aTree = a.run(using input.restrictToChildN(1))
-          val res = alignedDevices.foldLeft(initTree.nv.selfValue)((res, d) =>
-            f(res, aTree.nv(d))
-          )
+          val res = alignedDevices
+            .filterNot(_ == uid)
+            .foldLeft(initTree.nv.selfValue)((res, d) => f(res, aTree.nv(d)))
           ValueTree.nval(NValue(res), initTree, aTree)
         case Mux(cond, th, el) =>
           val condTree = cond.run(using input.restrictToChildN(0))
