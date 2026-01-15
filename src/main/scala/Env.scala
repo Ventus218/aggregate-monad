@@ -17,10 +17,13 @@ object Env:
 
   import Env.TreeNodeType
   extension (env: Env)
-    private[nonfree] def alignWithChild(nChild: Int, nodeType: TreeNodeType): Env = 
+    /** Enters the *n*th child of each ValueTree and discard non aligned ValueTrees.
+     *  Alignment is checked against the device *nodeType*.
+     *  */
+    private[nonfree] def alignWithChild(n: Int, nodeType: TreeNodeType): Env = 
         env
           .view
-          .mapValues(_.children(nChild))
+          .mapValues(_.children(n))
           .filter((_, t) =>
             // Since branches can only happen due to "Call"s i think it would
             // be enough to just check for those, but for now we check each
@@ -35,5 +38,5 @@ object Env:
     private[nonfree] def alignedDevices: Set[Device] = 
       env.keySet
 
-    private[nonfree] def top: Map[Device, ValueTree[Any]] = 
+    private[nonfree] def toMap: Map[Device, ValueTree[Any]] = 
       env
