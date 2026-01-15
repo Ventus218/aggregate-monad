@@ -28,8 +28,16 @@ object ValueTrees:
     def nval[A](nv: NValue[A], children: ValueTree[Any]*): ValueTree[A] =
       NVal(nv, children)
 
-    def xc[R, S]( nv: NValue[R], send: NValue[S], children: ValueTree[Any]*): ValueTree[R] = 
+    def xc[R, S](
+        nv: NValue[R],
+        send: NValue[S],
+        children: ValueTree[Any]*
+    ): ValueTree[R] =
       XC(nv, send, children)
 
-    def call[A]( id: String, nv: NValue[A], children: ValueTree[Any]*): ValueTree[A] =
+    def call[A](
+        id: String,
+        nv: NValue[A],
+        children: ValueTree[Any]*
+    ): ValueTree[A] =
       Call(id, nv, children)
