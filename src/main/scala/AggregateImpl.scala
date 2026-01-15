@@ -2,6 +2,7 @@ package aggregate.nonfree
 
 import aggregate.AggregateAPI.Device
 import aggregate.NValues.NValue
+import aggregate.ValueTrees.*
 
 object AggregateImpl:
   opaque type Aggregate[+A] = Grammar[A]
@@ -67,41 +68,6 @@ object AggregateImpl:
       sensors: Map[String, NValue[Any]],
       messages: Map[Device, ValueTree[Any]]
   )
-
-  enum ValueTree[+A]:
-    case NVal(nv: NValue[A], children: Seq[ValueTree[Any]])
-    case XC[+R, +S](
-        ret: NValue[R],
-        send: NValue[S],
-        children: Seq[ValueTree[Any]]
-    ) extends ValueTree[R]
-    case Call(id: String, nv: NValue[A], children: Seq[ValueTree[Any]])
-
-  extension [A](vt: ValueTree[A])
-    def nv: NValue[A] = vt match
-      case ValueTree.NVal(nv, children)      => nv
-      case ValueTree.XC(ret, send, children) => nv
-      case ValueTree.Call(id, nv, children)  => nv
-    def children: Seq[ValueTree[Any]] = vt match
-      case ValueTree.NVal(nv, children)      => children
-      case ValueTree.XC(ret, send, children) => children
-      case ValueTree.Call(id, nv, children)  => children
-
-  object ValueTree:
-    def nval[A](nv: NValue[A], children: ValueTree[Any]*): ValueTree.NVal[A] =
-      ValueTree.NVal(nv, children)
-
-    def xc[R, S](
-        nv: NValue[R],
-        send: NValue[S],
-        children: ValueTree[Any]*
-    ): ValueTree.XC[R, S] = ValueTree.XC(nv, send, children)
-
-    def call[A](
-        id: String,
-        nv: NValue[A],
-        children: ValueTree[Any]*
-    ): ValueTree.Call[A] = ValueTree.Call(id, nv, children)
 
   extension [A](nv: NValue[A])
     def selfValue(using input: Input): A =
