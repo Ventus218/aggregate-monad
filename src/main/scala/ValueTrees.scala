@@ -16,7 +16,7 @@ object ValueTrees:
   extension [A](vt: ValueTree[A])
     def nv: NValue[A] = vt match
       case NVal(nv, children)      => nv
-      case XC(ret, send, children) => nv
+      case XC(ret, send, children) => ret
       case Call(id, nv, children)  => nv
 
     def children: Seq[ValueTree[Any]] = vt match
