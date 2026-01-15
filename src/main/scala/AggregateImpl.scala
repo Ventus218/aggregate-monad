@@ -87,17 +87,16 @@ object AggregateImpl:
 
   extension [A](a: Aggregate[A])
     def run(env: Env)(using input: Input): ValueTree[A] =
+      // I think we can safely assume that all devices are aligned with the root node
       a match
         case Exchange(default, body) =>
           val defaultTree = default.run(env.alignWithChild(0, default))
           val defaultValue = defaultTree.nv.selfValue
-          val nvalue = NValue(
-            defaultValue,
-            env.alignedDevices
-              .map(d => (d -> env.top(d).nv(d).asInstanceOf[defaultValue.type]))
-              .toMap
-          )
-          val (ret, send) = body(Pure(nvalue))
+          val overrides =
+            env.toMap.map((d, vt) =>
+              (d, vt.nv(d).asInstanceOf[defaultValue.type])
+            )
+          val (ret, send) = body(Pure(NValue(defaultValue, overrides)))
           val retTree = ret.run(env.alignWithChild(1, ret))
           val sendTree = send.run(env.alignWithChild(2, send))
           // not sure about what trees include in children
