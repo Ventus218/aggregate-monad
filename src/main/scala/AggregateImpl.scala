@@ -65,103 +65,86 @@ object AggregateImpl:
 
   case class Input(
       uid: Device,
-      sensors: Map[String, NValue[Any]],
-      messages: Map[Device, ValueTree[Any]]
+      sensors: Map[String, NValue[Any]]
   )
 
   extension [A](nv: NValue[A])
     def selfValue(using input: Input): A =
       nv(input.uid)
 
-  extension (input: Input)
-    def restrictToChildN(n: Int): Input =
-      input.copy(messages = input.messages.view.mapValues(_.children(n)).toMap)
+  private def uid(using input: Input): Device =
+    input.uid
+
+  import aggregate.nonfree.Env.*
+  import scala.language.implicitConversions
+
+  private given [A]: Conversion[Grammar[A], Env.TreeNodeType] with
+    def apply(x: Grammar[A]): Env.TreeNodeType =
+      x match
+        case Call(id, _)    => Env.TreeNodeType.Call(id)
+        case Exchange(_, _) => Env.TreeNodeType.XC
+        case _              => Env.TreeNodeType.NVal
 
   extension [A](a: Aggregate[A])
-    def uid(using input: Input): Device =
-      input.uid
-
-    def run(using unsafeInput: Input): ValueTree[A] =
-
-      // keeping only messages of aligned devices
-      given input: Input = unsafeInput.copy(messages =
-        unsafeInput.messages
-          .filter((_, t) =>
-            // Since branches can only happen due to "Call"s i think it would
-            // be enough to just check for those, but for now we check each
-            // tree node.
-            (t, a) match
-              case (t: ValueTree.XC[?, ?], a: Exchange[?, ?]) => true
-              case (ValueTree.Call(id1, _, _), Call(id2, _))  => id1 == id2
-              case (t: ValueTree.NVal[?], a) =>
-                !(a.isInstanceOf[Exchange[?, ?]] || a.isInstanceOf[Call[?]])
-              case _ => false
-          )
-      )
-      val alignedDevices = input.messages.keySet.toSeq
-
+    def run(env: Env)(using input: Input): ValueTree[A] =
       a match
         case Exchange(default, body) =>
-          val defaultTree = default.run(using input.restrictToChildN(0))
+          val defaultTree = default.run(env.alignWithChild(0, default))
           val defaultValue = defaultTree.nv.selfValue
           val nvalue = NValue(
             defaultValue,
-            alignedDevices
-              .map(d =>
-                (d -> input.messages(d).nv(d).asInstanceOf[defaultValue.type])
-              )
+            env.alignedDevices
+              .map(d => (d -> env.top(d).nv(d).asInstanceOf[defaultValue.type]))
               .toMap
           )
           val (ret, send) = body(Pure(nvalue))
-          val retTree = ret.run(using input.restrictToChildN(1))
-          val sendTree = send.run(using input.restrictToChildN(2))
+          val retTree = ret.run(env.alignWithChild(1, ret))
+          val sendTree = send.run(env.alignWithChild(2, send))
           // not sure about what trees include in children
           ValueTree.xc(retTree.nv, sendTree.nv, defaultTree, retTree, sendTree)
         case Call(id, f) =>
-          val fTree = f.run(using input.restrictToChildN(0))
-          val fun = fTree.nv.selfValue
-          val funTree = fun().run(using input.restrictToChildN(1))
+          val fTree = f.run(env.alignWithChild(0, f))
+          val fun = fTree.nv.selfValue()
+          val funTree = fun.run(env.alignWithChild(1, fun))
           ValueTree.call(id, funTree.nv, fTree, funTree)
         case NFold(init, a, f) =>
-          val initTree = init.run(using input.restrictToChildN(0))
-          val aTree = a.run(using input.restrictToChildN(1))
-          val res = alignedDevices
+          val initTree = init.run(env.alignWithChild(0, init))
+          val aTree = a.run(env.alignWithChild(1, a))
+          val res = env.alignedDevices
             .filterNot(_ == uid)
             .foldLeft(initTree.nv.selfValue)((res, d) => f(res, aTree.nv(d)))
           ValueTree.nval(NValue(res), initTree, aTree)
         case Mux(cond, th, el) =>
-          val condTree = cond.run(using input.restrictToChildN(0))
-          val thTree = th.run(using input.restrictToChildN(1))
-          val elTree = el.run(using input.restrictToChildN(2))
+          val condTree = cond.run(env.alignWithChild(0, cond))
+          val thTree = th.run(env.alignWithChild(1, th))
+          val elTree = el.run(env.alignWithChild(2, el))
           val result = if condTree.nv.selfValue then thTree.nv else elTree.nv
           ValueTree.nval(result, condTree, thTree, elTree)
         case Sensor(name) =>
-          val nameTree = name.run(using input.restrictToChildN(0))
+          val nameTree = name.run(env.alignWithChild(0, name))
           val sensorNValue =
             input.sensors(nameTree.nv.selfValue).asInstanceOf[NValue[A]]
           ValueTree.nval(sensorNValue, nameTree)
         case Uid =>
           ValueTree.nval(NValue(uid))
         case Self(a) =>
-          val aTree = a.run(using input.restrictToChildN(0))
+          val aTree = a.run(env.alignWithChild(0, a))
           ValueTree.nval(NValue(aTree.nv.selfValue), aTree)
         case UpdateSelf(a, f) =>
-          val aTree = a.run(using input.restrictToChildN(0))
+          val aTree = a.run(env.alignWithChild(0, a))
           val updatedNValue = aTree.nv.setWith(uid, f)
           ValueTree.nval(updatedNValue, aTree)
         case Pure(nvalues) =>
           ValueTree.nval(nvalues)
         case Map_(a, f) =>
-          val aTree = a.run(using input.restrictToChildN(0))
+          val aTree = a.run(env.alignWithChild(0, a))
           ValueTree.nval(aTree.nv.map(f), aTree)
         case PointwiseOp(a, b, f) =>
-          val aTree = a.run(using input.restrictToChildN(0))
+          val aTree = a.run(env.alignWithChild(0, a))
           val aNV = aTree.nv
-          val bTree = b.run(using input.restrictToChildN(1))
+          val bTree = b.run(env.alignWithChild(1, b))
           val bNV = bTree.nv
-          // TODO:
-          val alignedDevices: Seq[Device] = ???
-          val values = alignedDevices
+          val values = env.alignedDevices
             .map(d => (d -> (aNV(d), bNV(d))))
             .toMap
             .view
