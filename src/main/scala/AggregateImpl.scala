@@ -138,10 +138,7 @@ object AggregateImpl:
           val bTree = b.runAlignedWithChildN(1)
           val bNV = bTree.nv
           val values = env.alignedDevices
-            .map(d => (d -> (aNV(d), bNV(d))))
-            .toMap
-            .view
-            .mapValues((a, b) => f(a, b))
+            .map(d => (d -> f(aNV(d), bNV(d))))
             .toMap
           ValueTree.nval(
             NValue(f(aNV.default, bNV.default), values),
