@@ -69,7 +69,7 @@ object AggregateImpl:
   )
 
   extension [A](nv: NValue[A])
-    def selfValue(using input: Input): A =
+    private def selfValue(using input: Input): A =
       nv(input.uid)
 
   private def uid(using input: Input): Device =
@@ -86,62 +86,75 @@ object AggregateImpl:
         case _              => Env.TreeNodeType.NVal
 
   extension [A](a: Aggregate[A])
-    def run(env: Env)(using input: Input): ValueTree[A] =
+    private def runAlignedWithChildN(n: Int)(using Env, Input): ValueTree[A] =
+      a.run(using summon[Env].alignWithChild(n, a))
+
+    def run(using env: Env, input: Input): ValueTree[A] =
       // I think we can safely assume that all devices are aligned with the root node
       a match
         case Exchange(default, body) =>
-          val defaultTree = default.run(env.alignWithChild(0, default))
+          val defaultTree = default.runAlignedWithChildN(0)
           val defaultValue = defaultTree.nv.selfValue
           val overrides =
             env.toMap.map((d, vt) =>
               (d, vt.nv(d).asInstanceOf[defaultValue.type])
             )
           val (ret, send) = body(Pure(NValue(defaultValue, overrides)))
-          val retTree = ret.run(env.alignWithChild(1, ret))
-          val sendTree = send.run(env.alignWithChild(2, send))
+          val retTree = ret.runAlignedWithChildN(1)
+          val sendTree = send.runAlignedWithChildN(2)
           // not sure about what trees include in children
           ValueTree.xc(retTree.nv, sendTree.nv, defaultTree, retTree, sendTree)
+
         case Call(id, f) =>
-          val fTree = f.run(env.alignWithChild(0, f))
+          val fTree = f.runAlignedWithChildN(0)
           val fun = fTree.nv.selfValue()
-          val funTree = fun.run(env.alignWithChild(1, fun))
+          val funTree = fun.runAlignedWithChildN(1)
           ValueTree.call(id, funTree.nv, fTree, funTree)
+
         case NFold(init, a, f) =>
-          val initTree = init.run(env.alignWithChild(0, init))
-          val aTree = a.run(env.alignWithChild(1, a))
+          val initTree = init.runAlignedWithChildN(0)
+          val aTree = a.runAlignedWithChildN(1)
           val res = env.alignedDevices
             .filterNot(_ == uid)
             .foldLeft(initTree.nv.selfValue)((res, d) => f(res, aTree.nv(d)))
           ValueTree.nval(NValue(res), initTree, aTree)
+
         case Mux(cond, th, el) =>
-          val condTree = cond.run(env.alignWithChild(0, cond))
-          val thTree = th.run(env.alignWithChild(1, th))
-          val elTree = el.run(env.alignWithChild(2, el))
+          val condTree = cond.runAlignedWithChildN(0)
+          val thTree = th.runAlignedWithChildN(1)
+          val elTree = el.runAlignedWithChildN(2)
           val result = if condTree.nv.selfValue then thTree.nv else elTree.nv
           ValueTree.nval(result, condTree, thTree, elTree)
+
         case Sensor(name) =>
-          val nameTree = name.run(env.alignWithChild(0, name))
+          val nameTree = name.runAlignedWithChildN(0)
           val sensorNValue =
             input.sensors(nameTree.nv.selfValue).asInstanceOf[NValue[A]]
           ValueTree.nval(sensorNValue, nameTree)
+
         case Uid =>
           ValueTree.nval(NValue(uid))
+
         case Self(a) =>
-          val aTree = a.run(env.alignWithChild(0, a))
+          val aTree = a.runAlignedWithChildN(0)
           ValueTree.nval(NValue(aTree.nv.selfValue), aTree)
+
         case UpdateSelf(a, f) =>
-          val aTree = a.run(env.alignWithChild(0, a))
+          val aTree = a.runAlignedWithChildN(0)
           val updatedNValue = aTree.nv.setWith(uid, f)
           ValueTree.nval(updatedNValue, aTree)
+
         case Pure(nvalues) =>
           ValueTree.nval(nvalues)
+
         case Map_(a, f) =>
-          val aTree = a.run(env.alignWithChild(0, a))
+          val aTree = a.runAlignedWithChildN(0)
           ValueTree.nval(aTree.nv.map(f), aTree)
+
         case PointwiseOp(a, b, f) =>
-          val aTree = a.run(env.alignWithChild(0, a))
+          val aTree = a.runAlignedWithChildN(0)
           val aNV = aTree.nv
-          val bTree = b.run(env.alignWithChild(1, b))
+          val bTree = b.runAlignedWithChildN(1)
           val bNV = bTree.nv
           val values = env.alignedDevices
             .map(d => (d -> (aNV(d), bNV(d))))
@@ -149,7 +162,6 @@ object AggregateImpl:
             .view
             .mapValues((a, b) => f(a, b))
             .toMap
-
           ValueTree.nval(
             NValue(f(aNV.default, bNV.default), values),
             aTree,
