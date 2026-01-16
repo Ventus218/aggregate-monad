@@ -62,3 +62,54 @@ class Test extends org.scalatest.funsuite.AnyFunSuite:
     vtRound1.nv(d2) shouldBe 1
 
     // TODO: continue...
+
+  test("nfold"):
+    val d1 = Device.fromInt(0)
+    val d2 = Device.fromInt(1)
+    val d3 = Device.fromInt(2)
+
+    def countAlignedChild: Aggregate[Int] =
+      nfold(init = 0)(1)(_ + _)
+
+    val d1vt0 = countAlignedChild.run(using Env(Map()), Input(uid = d1, Map()))
+    val d2vt0 = countAlignedChild.run(using Env(Map()), Input(uid = d2, Map()))
+    val d3vt0 = countAlignedChild.run(using Env(Map()), Input(uid = d3, Map()))
+
+    d1vt0.nv(d1) shouldBe 0
+    d2vt0.nv(d2) shouldBe 0
+    d3vt0.nv(d3) shouldBe 0
+
+    val d1vt1 = countAlignedChild.run(using
+      Env(Map((d2 -> d2vt0), (d3 -> d3vt0))),
+      Input(uid = d1, Map())
+    )
+    val d2vt1 = countAlignedChild.run(using
+      Env(Map((d1 -> d1vt0), (d3 -> d3vt0))),
+      Input(uid = d2, Map())
+    )
+    val d3vt1 = countAlignedChild.run(using
+      Env(Map((d1 -> d1vt0))),
+      Input(uid = d3, Map())
+    )
+
+    d1vt1.nv(d1) shouldBe 2
+    d2vt1.nv(d2) shouldBe 2
+    d3vt1.nv(d3) shouldBe 1
+
+  test("branch"):
+    val d1 = Device.fromInt(0)
+    val d2 = Device.fromInt(1)
+
+    def sens = NValue(false, Map((d1 -> true), (d2 -> false)))
+    val program = branch(sens)(0)(1)
+
+    val d1vt0 = program.run(using Env(Map()), Input(uid = d1, Map()))
+    val d2vt0 = program.run(using Env(Map()), Input(uid = d2, Map()))
+
+    val d1vt1 =
+      program.run(using Env(Map((d2 -> d2vt0))), Input(uid = d1, Map()))
+    val d2vt1 =
+      program.run(using Env(Map((d1 -> d1vt0))), Input(uid = d2, Map()))
+
+    d1vt1.nv(d1) shouldBe 0
+    d2vt1.nv(d2) shouldBe 1
