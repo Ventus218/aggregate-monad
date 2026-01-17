@@ -113,3 +113,39 @@ class Test extends org.scalatest.funsuite.AnyFunSuite:
 
     d1vt1.nv(d1) shouldBe 0
     d2vt1.nv(d2) shouldBe 1
+
+  test("branch and alignment"):
+    val d1 = Device.fromInt(0)
+    val d2 = Device.fromInt(1)
+    def countAlignedChild: Aggregate[Int] =
+      nfold(init = 0)(1)(_ + _)
+    def sens = NValue(false, Map((d1 -> true), (d2 -> false)))
+
+    val program1 = branch(sens)(countAlignedChild)(countAlignedChild)
+
+    val p1d1vt0 = program1.run(using Env(Map()), Input(uid = d1, Map()))
+    val p1d2vt0 = program1.run(using Env(Map()), Input(uid = d2, Map()))
+
+    val p1d1vt1 =
+      program1.run(using Env(Map((d2 -> p1d2vt0))), Input(uid = d1, Map()))
+    val p1d2vt1 =
+      program1.run(using Env(Map((d1 -> p1d1vt0))), Input(uid = d2, Map()))
+
+    p1d1vt1.nv(d1) shouldBe 0
+    p1d2vt1.nv(d2) shouldBe 0
+
+    val program2 = for
+      count <- countAlignedChild
+      res <- branch(sens)(nvalGiven(count))(count)
+    yield res
+
+    val p2d1vt0 = program2.run(using Env(Map()), Input(uid = d1, Map()))
+    val p2d2vt0 = program2.run(using Env(Map()), Input(uid = d2, Map()))
+
+    val p2d1vt1 =
+      program2.run(using Env(Map((d2 -> p2d2vt0))), Input(uid = d1, Map()))
+    val p2d2vt1 =
+      program2.run(using Env(Map((d1 -> p2d1vt0))), Input(uid = d2, Map()))
+
+    p2d1vt1.nv(d1) shouldBe 1
+    p2d2vt1.nv(d2) shouldBe 1

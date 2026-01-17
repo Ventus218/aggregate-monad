@@ -1,5 +1,7 @@
 package aggregate
 
+import aggregate.NValues.*
+
 trait AggregateAPI:
   type Device
   type Aggregate[_]
@@ -18,13 +20,20 @@ trait AggregateAPI:
       el: Aggregate[A]
   ): Aggregate[A]
 
+  // TODO: here just until we can implement call
+  def branch[A](cond: Aggregate[Boolean])(th: Aggregate[A])(
+      el: Aggregate[A]
+  ): Aggregate[A]
+
   def uid: Aggregate[Device]
 
   extension [A](fa: Aggregate[A])
     def self: Aggregate[A]
     def updateSelf(f: A => A): Aggregate[A]
 
-  extension [A](fa: Aggregate[A]) def map[B](f: A => B): Aggregate[B]
+  extension [A](fa: Aggregate[A])
+    def map[B](f: NValue[A] => NValue[B]): Aggregate[B]
+    def flatMap[B](f: NValue[A] => Aggregate[B]): Aggregate[B]
 
   def pointwise[A, B](
       a: Aggregate[A],
@@ -33,6 +42,7 @@ trait AggregateAPI:
   ): Aggregate[B]
 
   given pureGiven[A]: Conversion[A, Aggregate[A]]
+  given nvalGiven[A]: Conversion[NValue[A], Aggregate[A]]
 
 object AggregateAPI extends AggregateAPI:
   opaque type Device = Int
@@ -46,12 +56,16 @@ object AggregateAPI extends AggregateAPI:
     self,
     updateSelf,
     map,
+    flatMap,
     mux,
+    branch,
     pointwise
   }
 
   given pureGiven[A]: Conversion[A, Aggregate[A]] =
     aggregate.nonfree.AggregateImpl.pureGiven
+  given nvalGiven[A]: Conversion[NValue[A], Aggregate[A]] =
+    aggregate.nonfree.AggregateImpl.nvalGiven
 
   object Device:
     def fromInt(i: Int): Device = i

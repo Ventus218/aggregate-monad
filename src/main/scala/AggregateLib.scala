@@ -1,17 +1,18 @@
 package aggregate
 
-object AggregateLib :
+object AggregateLib:
   import AggregateAPI.*
 
   def nbr[A](default: Aggregate[A], send: Aggregate[A]): Aggregate[A] =
     exchange(default)(a => (a, send))
 
-  def branch[A](cond: Aggregate[Boolean])(the: => Aggregate[A])(
-      els: => Aggregate[A]
-  ): Aggregate[A] =
-    import AggregateAPI.pureGiven
-    call:
-      mux(cond)(pureGiven(() => the))(pureGiven(() => els))
+  // TODO: restore once call can be implemented
+  // def branch[A](cond: Aggregate[Boolean])(the: => Aggregate[A])(
+  //     els: => Aggregate[A]
+  // ): Aggregate[A] =
+  //   import AggregateAPI.pureGiven
+  //   call:
+  //     mux(cond)(pureGiven(() => the))(pureGiven(() => els))
 
   def retsend[A](a: Aggregate[A]): (Aggregate[A], Aggregate[A]) =
     (a, a)

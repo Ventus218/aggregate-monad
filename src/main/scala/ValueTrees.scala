@@ -4,6 +4,7 @@ object ValueTrees:
   import NValues.*
 
   enum ValueTree[+A]:
+    case Sequence(first: ValueTree[Any], last: ValueTree[A])
     case NVal(nv: NValue[A], children: Seq[ValueTree[Any]])
     case XC[+R, +S](
         ret: NValue[R],
@@ -15,14 +16,16 @@ object ValueTrees:
 
   extension [A](vt: ValueTree[A])
     def nv: NValue[A] = vt match
-      case NVal(nv, children)      => nv
-      case XC(ret, send, children) => ret
-      case Call(id, nv, children)  => nv
+      case NVal(nv, children)       => nv
+      case XC(ret, send, children)  => ret
+      case Call(id, nv, children)   => nv
+      case Sequence(children, last) => last.nv
 
     def children: Seq[ValueTree[Any]] = vt match
       case NVal(nv, children)      => children
       case XC(ret, send, children) => children
       case Call(id, nv, children)  => children
+      case Sequence(first, last)   => Seq(first, last)
 
   object ValueTree:
     def nval[A](nv: NValue[A], children: ValueTree[Any]*): ValueTree[A] =
@@ -41,3 +44,9 @@ object ValueTrees:
         children: ValueTree[Any]*
     ): ValueTree[A] =
       Call(id, nv, children)
+
+    def seq[A](
+        first: ValueTree[Any],
+        last: ValueTree[A]
+    ): ValueTree[A] =
+      Sequence(first, last)
