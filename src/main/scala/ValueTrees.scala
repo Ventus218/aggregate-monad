@@ -12,6 +12,40 @@ object ValueTrees:
         children: Seq[ValueTree[Any]]
     ) extends ValueTree[R]
     case Call(id: String, nv: NValue[A], children: Seq[ValueTree[Any]])
+
+    override def toString(): String =
+      def loop(t: ValueTree[Any], level: Int): String =
+        val indent = "  " * level
+        t match
+          case NVal(nv, ch) =>
+            val head = s"${indent}NVal(nv: $nv)"
+            val children =
+              if ch.isEmpty then ""
+              else ch.map(c => loop(c, level + 1)).mkString("\n")
+            if children.isEmpty then head else s"$head\n$children"
+
+          case XC(ret, send, ch) =>
+            val head = s"${indent}XC(nv: $ret, send: $send)"
+            val children =
+              if ch.isEmpty then ""
+              else ch.map(c => loop(c, level + 1)).mkString("\n")
+            if children.isEmpty then head else s"$head\n$children"
+
+          case Call(id, nv, ch) =>
+            val head = s"${indent}Call(id: $id, nv: $nv)"
+            val children =
+              if ch.isEmpty then ""
+              else ch.map(c => loop(c, level + 1)).mkString("\n")
+            if children.isEmpty then head else s"$head\n$children"
+
+          case Sequence(first, last) =>
+            val head = s"${indent}Sequence(nv: ${this.nv})"
+            val f = loop(first, level + 1)
+            val l = loop(last, level + 1)
+            s"$head\n$f\n$l"
+
+      loop(this, 0)
+
   import ValueTree.*
 
   extension [A](vt: ValueTree[A])

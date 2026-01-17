@@ -5,6 +5,12 @@ object NValues:
 
   case class NValue[+A](default: A, values: Map[Device, A] = Map()):
     def apply(d: Device): A = values.get(d).getOrElse(default)
+    override def toString(): String =
+      val overrides = values.toList
+        .filter((_, a) => a != default)
+        .map((d, a) => s"$d -> $a")
+        .mkString(", ")
+      s"$default[$overrides]"
 
   extension [A](nv: NValue[A])
     def set(d: Device, value: A): NValue[A] =
