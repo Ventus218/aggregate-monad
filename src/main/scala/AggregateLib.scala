@@ -6,6 +6,19 @@ object AggregateLib:
   def nbr[A](default: Aggregate[A], send: Aggregate[A]): Aggregate[A] =
     exchange(default)(a => (a, send))
 
+  def pointwise[A, B, C](
+      a: Aggregate[A],
+      b: Aggregate[B],
+      f: (A, B) => C
+  ): Aggregate[C] =
+    for
+      a <- a
+      b <- b
+    yield (for
+      a <- a
+      b <- b
+    yield f(a, b))
+
   // TODO: restore once call can be implemented
   // def branch[A](cond: Aggregate[Boolean])(the: => Aggregate[A])(
   //     els: => Aggregate[A]
