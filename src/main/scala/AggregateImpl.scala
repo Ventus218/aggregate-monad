@@ -25,8 +25,6 @@ object AggregateImpl:
         extends Aggregate[B]
     case Map_[A, B](a: Aggregate[A], f: NValue[A] => NValue[B])
         extends Aggregate[B]
-    case PointwiseOp[A, B, C](a: Aggregate[A], b: Aggregate[B], f: (A, B) => C)
-        extends Aggregate[C]
 
     // TODO: here just until we can implement call
     case Branch(cond: Aggregate[Boolean], th: Aggregate[A], el: Aggregate[A])
@@ -67,13 +65,6 @@ object AggregateImpl:
     def map[B](f: NValue[A] => NValue[B]): Aggregate[B] = Map_(fa, f)
     def flatMap[B](f: NValue[A] => Aggregate[B]): Aggregate[B] = FlatMap(fa, f)
 
-  def pointwise[A, B, C](
-      a: Aggregate[A],
-      b: Aggregate[B],
-      f: (A, B) => C
-  ): Aggregate[C] =
-    PointwiseOp(a, b, f)
-
   def pureGiven[A]: Conversion[A, Aggregate[A]] = x => Pure(NValue(x))
   def nvalGiven[A]: Conversion[NValue[A], Aggregate[A]] = x => Pure(x)
 
@@ -105,6 +96,9 @@ object AggregateImpl:
       given env: Env = envUnsafe.alignWith(a)
       a match
         case Pure(nvalues) =>
+          // TODO: here i could "clean" nvalues from non aligned devices (if necessary)
+          // val map = env.alignedDevices.map(d => (d, nvalues(d))).toMap
+          // val cleanNvalue = NValue(nvalues.default, map)
           ValueTree.nval(nvalues)
 
         case Uid =>
@@ -149,20 +143,6 @@ object AggregateImpl:
             .filterNot(_ == input.uid)
             .foldLeft(initTree.nv.selfValue)((res, d) => f(res, aTree.nv(d)))
           ValueTree.nval(NValue(res), initTree, aTree)
-
-        case PointwiseOp(a, b, f) =>
-          val aTree = a.runAsChildN(0)
-          val aNV = aTree.nv
-          val bTree = b.runAsChildN(1)
-          val bNV = bTree.nv
-          val values = env.alignedDevices
-            .map(d => (d -> f(aNV(d), bNV(d))))
-            .toMap
-          ValueTree.nval(
-            NValue(f(aNV.default, bNV.default), values),
-            aTree,
-            bTree
-          )
 
         case Exchange(default, body) =>
           val defaultTree = default.runAsChildN(0)
