@@ -49,23 +49,21 @@ def distanceInServiceProvisioning(
 def gossipEver(event: Aggregate[Boolean]): Aggregate[Boolean] =
   exchange(false)((n) => retsend(nfold(n.self | event)(n)(_ | _)))
 
-// // TODO: finish implementation
-// def broadcast[A](dist: Aggregate[Float], value: Aggregate[A]): Aggregate[A] =
-//   def minBreakingTies[A: Numeric, B: Numeric](
-//       a: (Aggregate[A], Aggregate[B]),
-//       b: (Aggregate[A], Aggregate[B])
-//   ): (Aggregate[A], Aggregate[B]) =
-//     ???
-//   val selfRank = (dist, uid.map(_.asInstanceOf[Float]))
-//   val nbrRank = nbr(selfRank, selfRank)
-//   val bestRank = nfold(selfRank)(nbrRank)(minBreakingTies)
-//   val parent = nbrRank eq bestRank
-//   exchange(value)((n) =>
-//     val selfKey = (value == null, selfRank)
-//     val nbrKey = (n == null, nbrRank)
-//     val res = nfold(selfKey, value)(nbrKey, n)(math.min).snd
-//     (res, mux(nbr(false, parent))(res)(null))
-//   )
+def broadcast[A](dist: Aggregate[Float], value: Aggregate[A]): Aggregate[A] =
+  extension [A](a: Aggregate[A])
+    infix def ->[B](b: Aggregate[B]): Aggregate[(A, B)] =
+      pointwise(a, b, (a, b) => (a, b))
+  extension [A, B](a: Aggregate[(A, B)])
+    def _1: Aggregate[A] = a.map(_.map(_._1))
+    def _2: Aggregate[B] = a.map(_.map(_._2))
+
+  val loc = (dist -> value)
+  exchange(loc)(n =>
+    val minDistAndValue =
+      nfold(init = loc)(n)((t1, t2) => if t1._1 <= t2._1 then t1 else t2)
+    retsend:
+      (dist -> minDistAndValue._2)
+  )._2
 
 def dilate(
     region: Aggregate[Boolean],
@@ -77,7 +75,7 @@ def distance(
     from: Aggregate[Boolean],
     to: Aggregate[Boolean]
 ): Aggregate[Float] =
-  ???
+  broadcast(gradient(from), gradient(to))
 
 def channel(
     source: Aggregate[Boolean],
