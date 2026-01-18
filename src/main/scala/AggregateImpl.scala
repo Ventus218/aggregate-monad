@@ -18,8 +18,8 @@ object AggregateImpl:
     case Sensor(name: Aggregate[String])
     case Uid extends Aggregate[Device]
     case Self(a: Aggregate[A])
-    // More generally this will become UpdateDevice and then we can implement this through Map
-    case UpdateSelf[A](fa: Aggregate[A], f: A => A) extends Aggregate[A]
+    case OverrideDevice[A](fa: Aggregate[A], d: Aggregate[Device], f: A => A)
+        extends Aggregate[A]
     case Pure(nvalues: NValue[A])
     case FlatMap[A, B](a: Aggregate[A], f: NValue[A] => Aggregate[B])
         extends Aggregate[B]
@@ -60,7 +60,8 @@ object AggregateImpl:
 
   extension [A](fa: Aggregate[A])
     def self: Aggregate[A] = Self(fa)
-    def updateSelf(f: A => A): Aggregate[A] = UpdateSelf(fa, f)
+    def update(d: Aggregate[Device], f: A => A): Aggregate[A] =
+      OverrideDevice(fa, d, f)
 
   extension [A](fa: Aggregate[A])
     def map[B](f: NValue[A] => NValue[B]): Aggregate[B] = Map_(fa, f)
@@ -113,10 +114,11 @@ object AggregateImpl:
           val aTree = a.runAsChildN(0)
           ValueTree.nval(NValue(aTree.nv.selfValue), aTree)
 
-        case UpdateSelf(a, f) =>
+        case OverrideDevice(a, d, f) =>
           val aTree = a.runAsChildN(0)
-          val updatedNValue = aTree.nv.setWith(input.uid, f)
-          ValueTree.nval(updatedNValue, aTree)
+          val dTree = d.runAsChildN(1)
+          val updatedNValue = aTree.nv.setWith(dTree.nv(input.uid), f)
+          ValueTree.nval(updatedNValue, aTree, dTree)
 
         case Sensor(name) =>
           val nameTree = name.runAsChildN(0)
