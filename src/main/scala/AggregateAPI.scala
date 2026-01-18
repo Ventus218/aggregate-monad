@@ -29,7 +29,7 @@ trait AggregateAPI:
 
   extension [A](fa: Aggregate[A])
     def self: Aggregate[A]
-    def updateSelf(f: A => A): Aggregate[A]
+    def update(d: Aggregate[Device], f: A => A): Aggregate[A]
 
   extension [A](fa: Aggregate[A])
     def map[B](f: NValue[A] => NValue[B]): Aggregate[B]
@@ -54,7 +54,7 @@ object AggregateAPI extends AggregateAPI:
     nfold,
     uid,
     self,
-    updateSelf,
+    update,
     map,
     flatMap,
     mux,

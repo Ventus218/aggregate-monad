@@ -21,6 +21,12 @@ object AggregateLib:
     def fst: Aggregate[A] = a._1
     def snd: Aggregate[B] = a._2
 
+  extension [A](a: Aggregate[A])
+    def updateSelf(f: A => A): Aggregate[A] =
+      a.update(uid, f)
+    def updateSelf(b: A): Aggregate[A] =
+      a.update(uid, _ => b)
+
   // Equals
   extension [A](a: Aggregate[A])
     infix def eq(b: Aggregate[A]): Aggregate[Boolean] =
