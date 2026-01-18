@@ -35,11 +35,11 @@ trait AggregateAPI:
     def map[B](f: NValue[A] => NValue[B]): Aggregate[B]
     def flatMap[B](f: NValue[A] => Aggregate[B]): Aggregate[B]
 
-  def pointwise[A, B](
+  def pointwise[A, B, C](
       a: Aggregate[A],
-      b: Aggregate[A],
-      f: (A, A) => B
-  ): Aggregate[B]
+      b: Aggregate[B],
+      f: (A, B) => C
+  ): Aggregate[C]
 
   given pureGiven[A]: Conversion[A, Aggregate[A]]
   given nvalGiven[A]: Conversion[NValue[A], Aggregate[A]]
