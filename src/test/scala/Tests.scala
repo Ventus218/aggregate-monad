@@ -18,6 +18,20 @@ class Test extends org.scalatest.funsuite.AnyFunSuite:
   val d3: Device = Device.fromInt(3)
   val d4: Device = Device.fromInt(4)
 
+  test("pointwise on NValues"):
+    val nva = NValue(3, Map((uid -> 3), (d2 -> 0)))
+    val nvb = NValue(1, Map((uid -> 1), (d3 -> 3)))
+    val nvc = for
+      a <- nva
+      b <- nvb
+    yield a + b
+
+    nvc(uid) shouldBe 4
+    nvc(d1) shouldBe 4
+    nvc(d2) shouldBe 1
+    nvc(d3) shouldBe 6
+    nvc(d4) shouldBe 4
+
   test("pure nvalue"):
     val program: Aggregate[Int] = 1
     val input = Input(uid, Map())
