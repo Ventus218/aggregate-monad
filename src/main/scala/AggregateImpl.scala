@@ -25,8 +25,8 @@ object AggregateImpl:
         extends Aggregate[B]
     case Map_[A, B](a: Aggregate[A], f: NValue[A] => NValue[B])
         extends Aggregate[B]
-    case PointwiseOp[A, B](a: Aggregate[A], b: Aggregate[A], f: (A, A) => B)
-        extends Aggregate[B]
+    case PointwiseOp[A, B, C](a: Aggregate[A], b: Aggregate[B], f: (A, B) => C)
+        extends Aggregate[C]
 
     // TODO: here just until we can implement call
     case Branch(cond: Aggregate[Boolean], th: Aggregate[A], el: Aggregate[A])
@@ -66,11 +66,11 @@ object AggregateImpl:
     def map[B](f: NValue[A] => NValue[B]): Aggregate[B] = Map_(fa, f)
     def flatMap[B](f: NValue[A] => Aggregate[B]): Aggregate[B] = FlatMap(fa, f)
 
-  def pointwise[A, B](
+  def pointwise[A, B, C](
       a: Aggregate[A],
-      b: Aggregate[A],
-      f: (A, A) => B
-  ): Aggregate[B] =
+      b: Aggregate[B],
+      f: (A, B) => C
+  ): Aggregate[C] =
     PointwiseOp(a, b, f)
 
   def pureGiven[A]: Conversion[A, Aggregate[A]] = x => Pure(NValue(x))
