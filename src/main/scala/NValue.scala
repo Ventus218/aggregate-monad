@@ -26,6 +26,8 @@ object NValues:
     def flatMap[B](f: A => NValue[B]): NValue[B] =
       NValue(
         f(nv.default).default,
+        // TODO: is it okay to just use the keySet of f(nv.default) ??
+        // Or should we merge the keySet of f applied to every value of nv ??
         (nv.values.keySet ++ f(nv.default).values.keySet)
           .map(d => (d, f(nv(d))(d)))
           .toMap
