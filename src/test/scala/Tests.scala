@@ -43,6 +43,32 @@ class Test extends org.scalatest.funsuite.AnyFunSuite:
     vt.nv(d3) shouldBe 1
     vt.nv(d4) shouldBe 1
 
+  test("mux"):
+    val cond = NValue(true, Map((d1 -> true), (d2 -> false)))
+    val program = mux(cond)(1)(0)
+    val env = Env(Map())
+
+    // Purely pointwise ignoring alignment
+    val d1vt = program.run(using env, Input(d1, Map()))
+    d1vt.nv(d1) shouldBe 1
+    d1vt.nv(d2) shouldBe 0
+    d1vt.nv(d3) shouldBe 1 // default
+    val d2vt = program.run(using env, Input(d2, Map()))
+    d2vt.nv(d1) shouldBe 1
+    d2vt.nv(d2) shouldBe 0
+    d2vt.nv(d3) shouldBe 1 // default
+
+    // // TODO: ask about this
+    // // If mux should consider alignment
+    // val d1vt = program.run(using env, Input(d1, Map()))
+    // d1vt.nv(d1) shouldBe 1
+    // d1vt.nv(d2) shouldBe 1
+    // d1vt.nv(d3) shouldBe 1 // default
+    // val d2vt = program.run(using env, Input(d2, Map()))
+    // d2vt.nv(d1) shouldBe 1
+    // d2vt.nv(d2) shouldBe 0
+    // d2vt.nv(d3) shouldBe 1 // default
+
   test("alignment"):
     val program = nfold(0)(1)(_ + _) // Count neighbours
     val input = Input(uid, Map())
