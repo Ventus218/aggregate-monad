@@ -83,10 +83,11 @@ object AggregateImpl:
   private given [A]: Conversion[Grammar[A], Env.TreeNodeType] with
     def apply(x: Grammar[A]): Env.TreeNodeType =
       x match
-        case Call(id, _)    => Env.TreeNodeType.Call(id)
-        case Exchange(_, _) => Env.TreeNodeType.XC
-        case FlatMap(_, _)  => Env.TreeNodeType.Sequence
-        case _              => Env.TreeNodeType.NVal
+        case Call(id, _)     => Env.TreeNodeType.Call(id)
+        case Exchange(_, _)  => Env.TreeNodeType.XC
+        case FlatMap(_, _)   => Env.TreeNodeType.Sequence
+        case Branch(_, _, _) => Env.TreeNodeType.Sequence
+        case _               => Env.TreeNodeType.NVal
 
   extension [A](a: Aggregate[A])
     private def runAsChildN(n: Int)(using Env, Input): ValueTree[A] =
@@ -163,12 +164,6 @@ object AggregateImpl:
         case Branch(cond, th, el) =>
           val condTree = cond.runAsChildN(0)
           val condition = condTree.nv.selfValue
-          val resultTree =
-            if condition then th.runAsChildN(1)
-            else el.runAsChildN(1)
-          ValueTree.call(
-            s"branch-$condition",
-            resultTree.nv,
-            condTree,
-            resultTree
-          )
+          val id = s"branch-$condition"
+          val call = Call(id, pureGiven(() => if condition then th else el))
+          ValueTree.seq(condTree, call.runAsChildN(1))
