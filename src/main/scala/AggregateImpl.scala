@@ -13,7 +13,6 @@ object AggregateImpl:
     ) extends Aggregate[A]
     case NFold[A, B](init: Aggregate[A], a: Aggregate[B], f: (A, B) => A)
         extends Aggregate[A]
-    case Mux(cond: Aggregate[Boolean], th: Aggregate[A], el: Aggregate[A])
     case Call(id: String, f: Aggregate[() => Aggregate[A]])
     case Sensor(name: Aggregate[String])
     case Uid extends Aggregate[Device]
@@ -45,7 +44,15 @@ object AggregateImpl:
   def mux[A](cond: Aggregate[Boolean])(th: Aggregate[A])(
       el: Aggregate[A]
   ): Aggregate[A] =
-    Mux(cond, th, el)
+    for
+      cond <- cond
+      th <- th
+      el <- el
+    yield (for
+      cond <- cond
+      th <- th
+      el <- el
+    yield if cond then th else el)
 
   def branch[A](cond: Aggregate[Boolean])(th: Aggregate[A])(
       el: Aggregate[A]
@@ -96,9 +103,12 @@ object AggregateImpl:
       given env: Env = envUnsafe.alignWith(a)
       a match
         case Pure(nvalues) =>
-          // TODO: here i could "clean" nvalues from non aligned devices (if necessary)
-          // val map = env.alignedDevices.map(d => (d, nvalues(d))).toMap
+          // // TODO: here i could "clean" nvalues from non aligned devices (if necessary)
+          // // even though i fear that it could mess up monad laws
+          // val alignedDevicesAndSelf = env.alignedDevices + input.uid
+          // val map = alignedDevicesAndSelf.map(d => (d, nvalues(d))).toMap
           // val cleanNvalue = NValue(nvalues.default, map)
+          // ValueTree.nval(cleanNvalue)
           ValueTree.nval(nvalues)
 
         case Uid =>
@@ -119,13 +129,6 @@ object AggregateImpl:
           val sensorNValue =
             input.sensors(nameTree.nv.selfValue).asInstanceOf[NValue[A]]
           ValueTree.nval(sensorNValue, nameTree)
-
-        case Mux(cond, th, el) =>
-          val condTree = cond.runAsChildN(0)
-          val thTree = th.runAsChildN(1)
-          val elTree = el.runAsChildN(2)
-          val result = if condTree.nv.selfValue then thTree.nv else elTree.nv
-          ValueTree.nval(result, condTree, thTree, elTree)
 
         case FlatMap(a, f) =>
           val aTree = a.runAsChildN(0)
