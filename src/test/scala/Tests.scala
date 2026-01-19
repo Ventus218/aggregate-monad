@@ -100,10 +100,6 @@ class Test extends org.scalatest.funsuite.AnyFunSuite:
     // TODO: continue...
 
   test("nfold"):
-    val d1 = Device.fromInt(0)
-    val d2 = Device.fromInt(1)
-    val d3 = Device.fromInt(2)
-
     def countAlignedChild: Aggregate[Int] =
       nfold(init = 0)(1)(_ + _)
 
@@ -133,9 +129,6 @@ class Test extends org.scalatest.funsuite.AnyFunSuite:
     d3vt1.nv(d3) shouldBe 1
 
   test("branch"):
-    val d1 = Device.fromInt(0)
-    val d2 = Device.fromInt(1)
-
     def sens = NValue(false, Map((d1 -> true), (d2 -> false)))
     val program = branch(sens)(0)(1)
 
@@ -151,8 +144,6 @@ class Test extends org.scalatest.funsuite.AnyFunSuite:
     d2vt1.nv(d2) shouldBe 1
 
   test("branch and alignment"):
-    val d1 = Device.fromInt(0)
-    val d2 = Device.fromInt(1)
     def countAlignedChild: Aggregate[Int] =
       nfold(init = 0)(1)(_ + _)
     def sens = NValue(false, Map((d1 -> true), (d2 -> false)))
