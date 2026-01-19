@@ -23,8 +23,6 @@ object AggregateImpl:
     case Pure(nvalues: NValue[A])
     case FlatMap[A, B](a: Aggregate[A], f: NValue[A] => Aggregate[B])
         extends Aggregate[B]
-    case Map_[A, B](a: Aggregate[A], f: NValue[A] => NValue[B])
-        extends Aggregate[B]
 
     // TODO: here just until we can implement call
     case Branch(cond: Aggregate[Boolean], th: Aggregate[A], el: Aggregate[A])
@@ -62,7 +60,9 @@ object AggregateImpl:
       OverrideDevice(fa, d, f)
 
   extension [A](fa: Aggregate[A])
-    def map[B](f: NValue[A] => NValue[B]): Aggregate[B] = Map_(fa, f)
+    def map[B](f: NValue[A] => NValue[B]): Aggregate[B] =
+      fa.flatMap(a => Pure(f(a)))
+
     def flatMap[B](f: NValue[A] => Aggregate[B]): Aggregate[B] = FlatMap(fa, f)
 
   def pureGiven[A]: Conversion[A, Aggregate[A]] = x => Pure(NValue(x))
@@ -126,10 +126,6 @@ object AggregateImpl:
           val elTree = el.runAsChildN(2)
           val result = if condTree.nv.selfValue then thTree.nv else elTree.nv
           ValueTree.nval(result, condTree, thTree, elTree)
-
-        case Map_(a, f) =>
-          val aTree = a.runAsChildN(0)
-          ValueTree.nval(f(aTree.nv), aTree)
 
         case FlatMap(a, f) =>
           val aTree = a.runAsChildN(0)
