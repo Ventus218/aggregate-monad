@@ -12,21 +12,19 @@ import aggregate.NValues.*
 
 class Test extends org.scalatest.funsuite.AnyFunSuite:
 
-  val uid: Device = Device.fromInt(0)
   val d1: Device = Device.fromInt(1)
   val d2: Device = Device.fromInt(2)
   val d3: Device = Device.fromInt(3)
   val d4: Device = Device.fromInt(4)
 
   test("pointwise on NValues"):
-    val nva = NValue(3, Map((uid -> 3), (d2 -> 0)))
-    val nvb = NValue(1, Map((uid -> 1), (d3 -> 3)))
+    val nva = NValue(3, Map((d1 -> 3), (d2 -> 0)))
+    val nvb = NValue(1, Map((d1 -> 1), (d3 -> 3)))
     val nvc = for
       a <- nva
       b <- nvb
     yield a + b
 
-    nvc(uid) shouldBe 4
     nvc(d1) shouldBe 4
     nvc(d2) shouldBe 1
     nvc(d3) shouldBe 6
@@ -34,10 +32,9 @@ class Test extends org.scalatest.funsuite.AnyFunSuite:
 
   test("pure nvalue"):
     val program: Aggregate[Int] = 1
-    val input = Input(uid, Map())
+    val input = Input(d1, Map())
     val env = Env(Map())
     val vt = program.run(using env, input)
-    vt.nv(uid) shouldBe 1
     vt.nv(d1) shouldBe 1
     vt.nv(d2) shouldBe 1
     vt.nv(d3) shouldBe 1
@@ -63,33 +60,32 @@ class Test extends org.scalatest.funsuite.AnyFunSuite:
 
   test("alignment"):
     val program = nfold(0)(1)(_ + _) // Count neighbours
-    val input = Input(uid, Map())
+    val input = Input(d1, Map())
 
     // We'll use this vt for creating fake envs
     val vt = program.run(using Env(Map()), input)
 
     val zeroNeighboursEnv = Env(Map())
-    val oneNeighbourEnv = Env(((d1 -> vt)))
+    val oneNeighbourEnv = Env(((d2 -> vt)))
     val twoNeighboursEnv = Env(
-      (d1 -> vt),
-      (d2 -> vt)
-    )
-    val threeNeighboursEnv = Env(
-      (d1 -> vt),
       (d2 -> vt),
       (d3 -> vt)
     )
-    program.run(using zeroNeighboursEnv, input).nv(uid) shouldBe 0
-    program.run(using oneNeighbourEnv, input).nv(uid) shouldBe 1
-    program.run(using twoNeighboursEnv, input).nv(uid) shouldBe 2
-    program.run(using threeNeighboursEnv, input).nv(uid) shouldBe 3
+    val threeNeighboursEnv = Env(
+      (d2 -> vt),
+      (d3 -> vt),
+      (d4 -> vt)
+    )
+    program.run(using zeroNeighboursEnv, input).nv(d1) shouldBe 0
+    program.run(using oneNeighbourEnv, input).nv(d1) shouldBe 1
+    program.run(using twoNeighboursEnv, input).nv(d1) shouldBe 2
+    program.run(using threeNeighboursEnv, input).nv(d1) shouldBe 3
 
   test("exchange"):
     val program = exchange(0)(n => retsend(n + 1))
 
-    val vtRound1 = program.run(using Env(), Input(uid, Map()))
+    val vtRound1 = program.run(using Env(), Input(d1, Map()))
 
-    vtRound1.nv(uid) shouldBe 1
     vtRound1.nv(d1) shouldBe 1
     vtRound1.nv(d2) shouldBe 1
 
