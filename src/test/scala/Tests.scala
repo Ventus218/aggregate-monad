@@ -48,10 +48,8 @@ class Test extends org.scalatest.funsuite.AnyFunSuite:
     val program = mux(cond)(1)(0)
     val env = Env(Map())
 
-    val d1vt = program.run(using env, Input(d1, Map()))
-    d1vt.nv shouldBe NValue(1)
-    val d2vt = program.run(using env, Input(d2, Map()))
-    d2vt.nv shouldBe NValue(0)
+    program.run(using env, Input(d1, Map())).nv shouldBe NValue(1)
+    program.run(using env, Input(d2, Map())).nv shouldBe NValue(0)
 
   // TODO: ask
   test("mux2"):
@@ -60,10 +58,8 @@ class Test extends org.scalatest.funsuite.AnyFunSuite:
     val program = mux(cond)(nvalGiven(trueNVal))(0)
     val env = Env(Map())
 
-    val d1vt = program.run(using env, Input(d1, Map()))
-    d1vt.nv shouldBe trueNVal
-    val d2vt = program.run(using env, Input(d2, Map()))
-    d2vt.nv shouldBe NValue(0)
+    program.run(using env, Input(d1, Map())).nv shouldBe trueNVal
+    program.run(using env, Input(d2, Map())).nv shouldBe NValue(0)
 
   test("alignment"):
     val program = nfold(0)(1)(_ + _) // Count neighbours
@@ -112,15 +108,15 @@ class Test extends org.scalatest.funsuite.AnyFunSuite:
     d3vt0.nv(d3) shouldBe 0
 
     val d1vt1 = countAlignedChild.run(using
-      Env(Map((d2 -> d2vt0), (d3 -> d3vt0))),
+      Env(Map((d1 -> d1vt0), (d2 -> d2vt0), (d3 -> d3vt0))),
       Input(uid = d1, Map())
     )
     val d2vt1 = countAlignedChild.run(using
-      Env(Map((d1 -> d1vt0), (d3 -> d3vt0))),
+      Env(Map((d1 -> d1vt0), (d2 -> d2vt0), (d3 -> d3vt0))),
       Input(uid = d2, Map())
     )
     val d3vt1 = countAlignedChild.run(using
-      Env(Map((d1 -> d1vt0))),
+      Env(Map((d1 -> d1vt0), (d3 -> d3vt0))),
       Input(uid = d3, Map())
     )
 
@@ -135,10 +131,9 @@ class Test extends org.scalatest.funsuite.AnyFunSuite:
     val d1vt0 = program.run(using Env(Map()), Input(uid = d1, Map()))
     val d2vt0 = program.run(using Env(Map()), Input(uid = d2, Map()))
 
-    val d1vt1 =
-      program.run(using Env(Map((d2 -> d2vt0))), Input(uid = d1, Map()))
-    val d2vt1 =
-      program.run(using Env(Map((d1 -> d1vt0))), Input(uid = d2, Map()))
+    val env = Env(Map((d1 -> d1vt0), (d2 -> d2vt0)))
+    val d1vt1 = program.run(using env, Input(uid = d1, Map()))
+    val d2vt1 = program.run(using env, Input(uid = d2, Map()))
 
     d1vt1.nv(d1) shouldBe 0
     d2vt1.nv(d2) shouldBe 1
@@ -153,10 +148,10 @@ class Test extends org.scalatest.funsuite.AnyFunSuite:
     val p1d1vt0 = program1.run(using Env(Map()), Input(uid = d1, Map()))
     val p1d2vt0 = program1.run(using Env(Map()), Input(uid = d2, Map()))
 
-    val p1d1vt1 =
-      program1.run(using Env(Map((d2 -> p1d2vt0))), Input(uid = d1, Map()))
-    val p1d2vt1 =
-      program1.run(using Env(Map((d1 -> p1d1vt0))), Input(uid = d2, Map()))
+    val env1 = Env(Map((d1 -> p1d1vt0), (d2 -> p1d2vt0)))
+
+    val p1d1vt1 = program1.run(using env1, Input(uid = d1, Map()))
+    val p1d2vt1 = program1.run(using env1, Input(uid = d2, Map()))
 
     p1d1vt1.nv(d1) shouldBe 0
     p1d2vt1.nv(d2) shouldBe 0
@@ -169,10 +164,10 @@ class Test extends org.scalatest.funsuite.AnyFunSuite:
     val p2d1vt0 = program2.run(using Env(Map()), Input(uid = d1, Map()))
     val p2d2vt0 = program2.run(using Env(Map()), Input(uid = d2, Map()))
 
-    val p2d1vt1 =
-      program2.run(using Env(Map((d2 -> p2d2vt0))), Input(uid = d1, Map()))
-    val p2d2vt1 =
-      program2.run(using Env(Map((d1 -> p2d1vt0))), Input(uid = d2, Map()))
+    val env2 = Env(Map((d1 -> p2d1vt0), (d2 -> p2d2vt0)))
+
+    val p2d1vt1 = program2.run(using env2, Input(uid = d1, Map()))
+    val p2d2vt1 = program2.run(using env2, Input(uid = d2, Map()))
 
     p2d1vt1.nv(d1) shouldBe 1
     p2d2vt1.nv(d2) shouldBe 1
