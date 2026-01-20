@@ -167,3 +167,42 @@ class Test extends org.scalatest.funsuite.AnyFunSuite:
 
     p2d1vt1.nv(d1) shouldBe 1
     p2d2vt1.nv(d2) shouldBe 1
+
+  test("question about nvalues"):
+    extension [A: Numeric](nv1: NValue[A])
+      infix def +(nv2: NValue[A]) =
+        import Numeric.Implicits.*
+        NValue(
+          nv1.default + nv2.default,
+          (nv1.values.keySet ++ nv2.values.keySet)
+            .map(d => (d -> (nv1(d) + nv2(d))))
+            .toMap
+        )
+
+    // Imagine i am device d1 ...
+    val cond: Aggregate[Boolean] = NValue(true, Map((d4 -> false)))
+    val a: Aggregate[Int] = NValue(0, Map((d2 -> 2), (d3 -> 4)))
+    val b: Aggregate[Int] = NValue(0, Map((d4 -> 1)))
+    for
+      a <- a
+      b <- b
+      // sum = a + b // Why fails compiling?
+      sum <- nvalGiven(a + b)
+      // Here sum is 0[d2 -> 2, d3 -> 4, d4 -> 1]
+      res <-
+        exchange(0)(n =>
+          retsend:
+            branch(cond) {
+              // Here i am aligned only with d2 and d3
+              // Should sum be
+              // 0[d2 -> 2, d3 -> 4]
+              // OR
+              // 0[d2 -> 2, d3 -> 4, d4 -> 1]
+              // And also do i send a value also to unaligned neighbours?
+              // They may become aligned in their next round..
+              nvalGiven(sum)
+            } {
+              n
+            }
+        )
+    yield res
