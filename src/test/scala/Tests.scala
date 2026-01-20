@@ -92,26 +92,29 @@ class Test extends org.scalatest.funsuite.AnyFunSuite:
     // TODO: continue...
 
   test("nfold"):
-    def countAlignedChild: Aggregate[Int] =
+    def countAlignedNeighbours: Aggregate[Int] =
       nfold(init = 0)(1)(_ + _)
 
-    val d1vt0 = countAlignedChild.run(using Env(Map()), Input(uid = d1, Map()))
-    val d2vt0 = countAlignedChild.run(using Env(Map()), Input(uid = d2, Map()))
-    val d3vt0 = countAlignedChild.run(using Env(Map()), Input(uid = d3, Map()))
+    val d1vt0 =
+      countAlignedNeighbours.run(using Env(Map()), Input(uid = d1, Map()))
+    val d2vt0 =
+      countAlignedNeighbours.run(using Env(Map()), Input(uid = d2, Map()))
+    val d3vt0 =
+      countAlignedNeighbours.run(using Env(Map()), Input(uid = d3, Map()))
 
     d1vt0.nv(d1) shouldBe 0
     d2vt0.nv(d2) shouldBe 0
     d3vt0.nv(d3) shouldBe 0
 
-    val d1vt1 = countAlignedChild.run(using
+    val d1vt1 = countAlignedNeighbours.run(using
       Env(Map((d1 -> d1vt0), (d2 -> d2vt0), (d3 -> d3vt0))),
       Input(uid = d1, Map())
     )
-    val d2vt1 = countAlignedChild.run(using
+    val d2vt1 = countAlignedNeighbours.run(using
       Env(Map((d1 -> d1vt0), (d2 -> d2vt0), (d3 -> d3vt0))),
       Input(uid = d2, Map())
     )
-    val d3vt1 = countAlignedChild.run(using
+    val d3vt1 = countAlignedNeighbours.run(using
       Env(Map((d1 -> d1vt0), (d3 -> d3vt0))),
       Input(uid = d3, Map())
     )
