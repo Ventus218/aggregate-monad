@@ -4,10 +4,8 @@ object AlignmentModule:
 
   opaque type Alignment[D, +A] = Grammar[D, A]
   private enum Grammar[D, +A]:
-    case Enter[D, A]() extends Grammar[D, A]
-    case Exit[D, A]() extends Grammar[D, A]
-    case AlignedContext[D, A]() extends Grammar[D, Map[D, A]]
-
+    case Call(id: String, f: Alignment[D, A]) // TODO: what else here??
+    case AlignedContext[D, A]() extends Alignment[D, Map[D, A]]
     case Pure[D, A](a: A) extends Grammar[D, A]
     case FlatMap[D, A, B](fa: Grammar[D, A], f: A => Grammar[D, B])
         extends Grammar[D, B]
@@ -16,9 +14,8 @@ object AlignmentModule:
 
   object Alignment:
     def pure[D, A](a: A): Alignment[D, A] = Pure(a)
-
-    def enter[D, A]: Alignment[D, A] = Enter()
-    def exit[D, A]: Alignment[D, A] = Exit()
+    def call[D, A](id: String, f: Alignment[D, A]): Alignment[D, A] =
+      Call(id, f)
     def alignedContext[D, A]: Alignment[D, Map[D, A]] = AlignedContext()
 
   extension [D, A](fa: Alignment[D, A])
@@ -39,78 +36,122 @@ object AlignmentModule:
         case AlignmentTree.Call(_, v, _)  => v
         case AlignmentTree.Next(_, right) => right.value
 
+  opaque type Env[D] = Map[D, AlignmentTree[Any]]
+  extension [D](env: Env[D])
+    private def alignWith(node: Alignment[D, Any]): Env[D] =
+      env.filter((_, t) =>
+        // Since branches can only happen due to "Call"s i think it would
+        // be enough to just check for those, but for now we check each
+        // tree node.
+        (t, node) match
+          case (AlignmentTree.Call(id1, _, _), Grammar.Call(id2, _)) =>
+            id1 == id2
+          case _ => true
+      )
+
   extension [D, A](fa: Alignment[D, A])
-    def run: AlignmentTree[A] =
+    def run(unsafeEnv: Env[D]): AlignmentTree[A] =
+      val env: Env[D] = unsafeEnv.alignWith(fa)
       fa match
-        case Enter()          => ???
-        case Exit()           => ???
-        case AlignedContext() => ???
+        case AlignedContext() =>
+          ??? // TODO: what here???
         case Pure(a) =>
           AlignmentTree.Val(a)
+        case Call(id, a) =>
+          val runA = a.run(env) // TODO: check if env must me modified
+          AlignmentTree.Call(id, runA.value, Seq(runA))
         case FlatMap(fa, f) =>
-          val left = fa.run
-          val right = f(left.value).run
+          val left = fa.run(env) // TODO: check if env must me modified
+          val right =
+            f(left.value).run(env) // TODO: check if env must me modified
           AlignmentTree.Next(left, right)
 
 object Test:
   import aggregate.NValues.*
   import AlignmentModule.*
-  import cats.~>
-  import cats.free.Free
   import aggregate.AggregateAPI.Device
 
-  given cats.Monad[NValue] = ???
-  given cats.Monad[AggregateAlignment] = ???
+  type Aggregate[A] = Alignment[Device, NValue[A]]
 
-  case class Input(uid: Device, sensors: Map[String, NValue[Any]])
-  private enum AggregateAlgebra[A]:
-    case Exchange[A, S](
-        default: Aggregate[S],
-        body: Aggregate[S] => (Aggregate[A], Aggregate[S])
-    ) extends AggregateAlgebra[A]
-    case NFold[A, B](init: Aggregate[A], a: Aggregate[B], f: (A, B) => A)
-        extends AggregateAlgebra[A]
-    case Mux(cond: Aggregate[Boolean], th: Aggregate[A], el: Aggregate[A])
-    case Call(id: String, f: Aggregate[() => Aggregate[A]])
-    case Sensor(name: Aggregate[String])
-    case Uid extends AggregateAlgebra[Device]
-    case Self(a: Aggregate[A])
-    case OverrideDevice[A](fa: Aggregate[A], d: Aggregate[Device], f: A => A)
-        extends AggregateAlgebra[A]
+  // TODO:
+  def _uid: Device = ???
 
-  opaque type Aggregate[A] = Free[AggregateAlgebra, NValue[A]]
+  def exchange[A, S](
+      default: Aggregate[S],
+      body: Aggregate[S] => (Aggregate[A], Aggregate[S])
+  ): Aggregate[A] =
+    for
+      default <- default
+      defaultValue = default(_uid)
+      ctx <- Alignment.alignedContext[Device, NValue[A]]
+      overrides = ctx.map((d, nv) => (d, nv(d).asInstanceOf[defaultValue.type]))
+      (ret, send) = body(Alignment.pure(NValue(defaultValue, overrides)))
+      ret <- ret
+      send <- send
+      _ <- Alignment.pure(send)
+    yield ret
 
-  def countAlignedNeighbours: Aggregate[Int] = ???
+  def nFold[A, B](init: Aggregate[A])(a: Aggregate[B])(
+      f: (A, B) => A
+  ): Aggregate[A] =
+    for
+      init <- init
+      a <- a
+      ctx <- Alignment.alignedContext[Device, NValue[A]]
+      devices = ctx.keySet
+    yield NValue(
+      (devices - _uid).foldLeft(init(_uid))((res, d) => f(res, a(d)))
+    )
+  def mux[A](
+      cond: Aggregate[Boolean],
+      th: Aggregate[A],
+      el: Aggregate[A]
+  ): Aggregate[A] =
+    for
+      cond <- cond
+      th <- th
+      el <- el
+    yield if cond(_uid) then th else el
+  def call[A](id: String, f: Aggregate[() => Aggregate[A]]): Aggregate[A] =
+    for
+      f <- f
+      res <- Alignment.call(id, f(_uid)())
+    yield res
+  def sensor[A](name: Aggregate[String]): Aggregate[A] = ???
+  def uid: Aggregate[Device] =
+    pure(_uid)
+  def self[A](a: Aggregate[A]): Aggregate[A] =
+    for a <- a
+    yield NValue(a(_uid))
+  def overrideDevice[A](
+      fa: Aggregate[A],
+      d: Aggregate[Device],
+      f: A => A
+  ): Aggregate[A] = ???
+
+  def pure[A](a: A): Aggregate[A] =
+    Alignment.pure(NValue(a))
+
+  // TODO: just for the moment
   def branch[A](cond: Aggregate[Boolean])(th: Aggregate[A])(
       el: Aggregate[A]
-  ): Aggregate[A] = ???
+  ): Aggregate[A] =
+    for
+      cond <- cond
+      condition = cond(_uid)
+      id = s"branch-condition"
+      call <- Alignment.call(
+        id,
+        Alignment.pure(() => if condition then th else el)
+      )
+      res <- call()
+    yield res
+
+  case class Input(uid: Device, sensors: Map[String, NValue[Any]])
+
+  def countAlignedNeighbours: Aggregate[Int] =
+    nFold(init = pure(0))(pure(1))(_ + _)
   def cond: Aggregate[Boolean] = ???
-
-  type AggregateAlignment[A] = Alignment[Device, A]
-
-  private def compiler: AggregateAlgebra ~> AggregateAlignment =
-    new (AggregateAlgebra ~> AggregateAlignment):
-      def apply[A](fa: AggregateAlgebra[A]): AggregateAlignment[A] =
-        val uid: Device = ???
-        fa match
-          case AggregateAlgebra.Exchange(default, body) => ???
-          case AggregateAlgebra.NFold(init, a, f)       => ???
-          case AggregateAlgebra.Mux(cond, th, el)       => ???
-          case AggregateAlgebra.Call(id, f)             => ???
-          case AggregateAlgebra.Sensor(name)            => ???
-          case AggregateAlgebra.Uid =>
-            val uid: Device = ???
-            Alignment.pure(uid)
-          case AggregateAlgebra.Self(a) =>
-            for
-              _ <- Alignment.enter
-              a <- a.foldMap(compiler)
-            yield a(uid)
-          case AggregateAlgebra.OverrideDevice(fa, d, f) => ???
-
-  extension [A](ag: Aggregate[A])
-    private def myrun: Alignment[Device, NValue[A]] =
-      ag.foldMap(compiler)
 
   given [A]: Conversion[NValue[A], Aggregate[A]] = ???
   import scala.language.implicitConversions
