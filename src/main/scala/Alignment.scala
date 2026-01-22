@@ -4,8 +4,9 @@ object AlignmentModule:
 
   opaque type Alignment[D, +A] = Grammar[D, A]
   private enum Grammar[D, +A]:
+    case XC(ret: A, send: Any)
     case Call(id: String, f: Alignment[D, A]) // TODO: what else here??
-    case AlignedContext[D, A]() extends Alignment[D, Map[D, A]]
+    case AlignedContext[D, A](f: (Env[D]) => A) extends Grammar[D, A]
     case Pure[D, A](a: A) extends Grammar[D, A]
     case FlatMap[D, A, B](fa: Grammar[D, A], f: A => Grammar[D, B])
         extends Grammar[D, B]
@@ -16,7 +17,12 @@ object AlignmentModule:
     def pure[D, A](a: A): Alignment[D, A] = Pure(a)
     def call[D, A](id: String, f: Alignment[D, A]): Alignment[D, A] =
       Call(id, f)
-    def alignedContext[D, A]: Alignment[D, Map[D, A]] = AlignedContext()
+    def xc[D, A](ret: A, send: Any): Alignment[D, A] =
+      XC(ret, send)
+    def alignedContext[D, A](
+        f: (Env[D]) => A
+    ): Alignment[D, A] =
+      AlignedContext(f)
 
   extension [D, A](fa: Alignment[D, A])
     def map[B](f: A => B): Alignment[D, B] =
@@ -26,40 +32,46 @@ object AlignmentModule:
 
   enum AlignmentTree[+A]:
     case Val(value: A)
-    case Call(id: String, value: A, children: Seq[AlignmentTree[Any]])
+    case XC(ret: A, send: Any)
+    case Call(id: String, right: AlignmentTree[A])
     case Next(left: AlignmentTree[Any], right: AlignmentTree[A])
 
   extension [A](t: AlignmentTree[A])
     def value: A =
       t match
         case AlignmentTree.Val(v)         => v
-        case AlignmentTree.Call(_, v, _)  => v
+        case AlignmentTree.XC(ret, _)     => ret
+        case AlignmentTree.Call(_, right) => right.value
         case AlignmentTree.Next(_, right) => right.value
 
   opaque type Env[D] = Map[D, AlignmentTree[Any]]
-  extension [D](env: Env[D])
-    private def alignWith(node: Alignment[D, Any]): Env[D] =
+  extension [D, A](env: Env[D])
+    private def alignWith(node: Alignment[D, A]): Env[D] =
       env.filter((_, t) =>
         // Since branches can only happen due to "Call"s i think it would
         // be enough to just check for those, but for now we check each
         // tree node.
         (t, node) match
-          case (AlignmentTree.Call(id1, _, _), Grammar.Call(id2, _)) =>
+          case (AlignmentTree.Call(id1, _), Grammar.Call(id2, _)) =>
             id1 == id2
           case _ => true
       )
+    def toMap: Map[D, AlignmentTree[Any]] =
+      env
 
   extension [D, A](fa: Alignment[D, A])
     def run(unsafeEnv: Env[D]): AlignmentTree[A] =
       val env: Env[D] = unsafeEnv.alignWith(fa)
       fa match
-        case AlignedContext() =>
-          ??? // TODO: what here???
+        case AlignedContext(f) =>
+          AlignmentTree.Val(f(env.asInstanceOf[Env[D]]))
         case Pure(a) =>
           AlignmentTree.Val(a)
         case Call(id, a) =>
           val runA = a.run(env) // TODO: check if env must me modified
-          AlignmentTree.Call(id, runA.value, Seq(runA))
+          AlignmentTree.Call(id, runA)
+        case XC(ret, send) =>
+          AlignmentTree.XC(ret, send)
         case FlatMap(fa, f) =>
           val left = fa.run(env) // TODO: check if env must me modified
           val right =
@@ -83,12 +95,22 @@ object Test:
     for
       default <- default
       defaultValue = default(_uid)
-      ctx <- Alignment.alignedContext[Device, NValue[A]]
-      overrides = ctx.map((d, nv) => (d, nv(d).asInstanceOf[defaultValue.type]))
-      (ret, send) = body(Alignment.pure(NValue(defaultValue, overrides)))
+      nbrMessages <- Alignment.alignedContext[Device, NValue[S]](ctx =>
+        val overrides =
+          ctx.toMap.map((d, tree) =>
+            (
+              d,
+              tree.value
+                .asInstanceOf[NValue[A]](d)
+                .asInstanceOf[defaultValue.type]
+            )
+          )
+        NValue(defaultValue, overrides)
+      )
+      (ret, send) = body(Alignment.pure(nbrMessages))
       ret <- ret
       send <- send
-      _ <- Alignment.pure(send)
+      ret <- Alignment.xc(ret, send)
     yield ret
 
   def nFold[A, B](init: Aggregate[A])(a: Aggregate[B])(
@@ -97,11 +119,11 @@ object Test:
     for
       init <- init
       a <- a
-      ctx <- Alignment.alignedContext[Device, NValue[A]]
-      devices = ctx.keySet
-    yield NValue(
-      (devices - _uid).foldLeft(init(_uid))((res, d) => f(res, a(d)))
-    )
+      res <- Alignment.alignedContext[Device, NValue[A]](ctx =>
+        val devices = ctx.toMap.keySet
+        NValue((devices - _uid).foldLeft(init(_uid))((res, d) => f(res, a(d))))
+      )
+    yield res
   def mux[A](
       cond: Aggregate[Boolean],
       th: Aggregate[A],
