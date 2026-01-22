@@ -84,12 +84,24 @@ class Test extends org.scalatest.funsuite.AnyFunSuite:
   test("exchange"):
     val program = exchange(0)(n => retsend(n + 1))
 
-    val vtRound1 = program.run(using Env(), Input(d1, Map()))
+    val d1vt0 = program.run(using Env(), Input(uid = d1, Map()))
 
-    vtRound1.nv(d1) shouldBe 1
-    vtRound1.nv(d2) shouldBe 1
+    d1vt0.nv(d1) shouldBe 1
+    d1vt0.nv(d2) shouldBe 1
 
-    // TODO: continue...
+    val d2vt0 =
+      program.run(using Env(Map((d1 -> d1vt0))), Input(uid = d2, Map()))
+
+    d2vt0.nv(d1) shouldBe 2
+    d2vt0.nv(d2) shouldBe 1
+
+    val d1vt1 = program.run(using
+      Env(Map((d1 -> d1vt0), (d2 -> d2vt0))),
+      Input(uid = d1, Map())
+    )
+
+    d1vt1.nv(d1) shouldBe 2
+    d1vt1.nv(d2) shouldBe 2
 
   test("nfold"):
     def countAlignedNeighbours: Aggregate[Int] =
