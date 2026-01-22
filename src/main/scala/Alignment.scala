@@ -116,10 +116,13 @@ object Test:
   import AlignmentModule.*
   import aggregate.AggregateAPI.Device
 
-  type Aggregate[A] = Device ?=> Alignment[Device, NValue[A]]
+  type Aggregate[A] =
+    Device ?=> Map[String, NValue[Any]] ?=> Alignment[Device, NValue[A]]
 
   // TODO:
-  def _uid: Device ?=> Device = summon[Device]
+  private def _uid: Device ?=> Device = summon[Device]
+  private def _sensors: Map[String, NValue[Any]] ?=> Map[String, NValue[Any]] =
+    summon[Map[String, NValue[Any]]]
 
   def exchange[A, S](default: Aggregate[S])(
       body: Aggregate[S] => (Aggregate[A], Aggregate[S])
@@ -171,7 +174,9 @@ object Test:
       f <- f
       res <- Alignment.call(id, () => f(_uid)())
     yield res
-  def sensor[A](name: Aggregate[String]): Aggregate[A] = ???
+  def sensor[A](name: Aggregate[String]): Aggregate[A] =
+    for name <- name
+    yield _sensors(name(_uid)).asInstanceOf[NValue[A]]
   def uid: Aggregate[Device] =
     pure(_uid)
   extension [A](a: Aggregate[A])
@@ -185,8 +190,13 @@ object Test:
         d <- d
       yield a.setWith(d(_uid), f)
 
-  export AlignmentModule.map
-  export AlignmentModule.flatMap
+    def map[B](f: NValue[A] => NValue[B]): Aggregate[B] =
+      import AlignmentModule.map as m
+      a.m(f)
+    def flatMap[B](f: NValue[A] => Aggregate[B]): Aggregate[B] =
+      import AlignmentModule.flatMap as fm
+      // a.fm(f) // Does not work
+      a.fm(f(_))
 
   def pure[A](a: A): Aggregate[A] =
     pureNV(NValue(a))
@@ -226,6 +236,7 @@ object Test:
     branch(cond)(countAlignedNeighbours)(countAlignedNeighbours)
 
   @main def main: Unit =
+    given sensors: Map[String, NValue[Any]] = Map()
     def prog: Aggregate[Int] = program2
     val d0vt0 = prog(using d0).run(Env.fromMap(Map()))
     val d1vt0 = prog(using d1).run(Env.fromMap(Map()))

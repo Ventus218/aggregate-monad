@@ -8,6 +8,7 @@ lazy val root = project
     version := "0.1.0-SNAPSHOT",
     scalaVersion := scala3Version,
     scalacOptions += "-feature",
+    scalacOptions += "-preview", // just for "better fors"
     libraryDependencies += "org.typelevel" %% "cats-core" % catsVersion,
     libraryDependencies += "org.typelevel" %% "cats-kernel" % catsVersion,
     libraryDependencies += "org.typelevel" %% "cats-free" % catsVersion,
