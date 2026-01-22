@@ -121,8 +121,7 @@ object Test:
   // TODO:
   def _uid: Device ?=> Device = summon[Device]
 
-  def exchange[A, S](
-      default: Aggregate[S],
+  def exchange[A, S](default: Aggregate[S])(
       body: Aggregate[S] => (Aggregate[A], Aggregate[S])
   ): Aggregate[A] =
     for
@@ -146,7 +145,7 @@ object Test:
       ret <- Alignment.xc(ret, send)
     yield ret
 
-  def nFold[A, B](init: Aggregate[A])(a: Aggregate[B])(
+  def nfold[A, B](init: Aggregate[A])(a: Aggregate[B])(
       f: (A, B) => A
   ): Aggregate[A] =
     for
@@ -157,9 +156,7 @@ object Test:
         NValue(neighbours.foldLeft(init(_uid))((res, d) => f(res, a(d))))
       )
     yield res
-  def mux[A](
-      cond: Aggregate[Boolean],
-      th: Aggregate[A],
+  def mux[A](cond: Aggregate[Boolean])(th: Aggregate[A])(
       el: Aggregate[A]
   ): Aggregate[A] =
     for
@@ -167,7 +164,9 @@ object Test:
       th <- th
       el <- el
     yield if cond(_uid) then th else el
-  def call[A](id: String, f: Aggregate[() => Aggregate[A]]): Aggregate[A] =
+  def call[A](f: Aggregate[() => Aggregate[A]]): Aggregate[A] =
+    // TODO:
+    val id: String = ???
     for
       f <- f
       res <- Alignment.call(id, () => f(_uid)())
@@ -175,14 +174,19 @@ object Test:
   def sensor[A](name: Aggregate[String]): Aggregate[A] = ???
   def uid: Aggregate[Device] =
     pure(_uid)
-  def self[A](a: Aggregate[A]): Aggregate[A] =
-    for a <- a
-    yield NValue(a(_uid))
-  def overrideDevice[A](
-      fa: Aggregate[A],
-      d: Aggregate[Device],
-      f: A => A
-  ): Aggregate[A] = ???
+  extension [A](a: Aggregate[A])
+    def self: Aggregate[A] =
+      for a <- a
+      yield NValue(a(_uid))
+
+    def overrideDevice(d: Aggregate[Device], f: A => A): Aggregate[A] =
+      for
+        a <- a
+        d <- d
+      yield a.setWith(d(_uid), f)
+
+  export AlignmentModule.map
+  export AlignmentModule.flatMap
 
   def pure[A](a: A): Aggregate[A] =
     pureNV(NValue(a))
@@ -210,7 +214,7 @@ object Test:
   val d1: Device = Device.fromInt(1)
   val d2: Device = Device.fromInt(2)
   def countAlignedNeighbours: Aggregate[Int] =
-    nFold(init = pure(0))(pure(1))(_ + _)
+    nfold(init = pure(0))(pure(1))(_ + _)
   def cond: Aggregate[Boolean] = conv(NValue(true, Map((d1 -> false))))
 
   def program: Aggregate[Int] =
