@@ -22,7 +22,13 @@ object AlignmentModule:
 
     extension [D, A](fa: Alignment[D, A])
       def map[B](f: A => B): Alignment[D, B] =
-        fa.flatMap(a => Alignment.pure(f(a)))
+        // // Less efficient (creates more nodes)
+        // fa.flatMap(a => Alignment.pure(f(a)))
+        fa match
+          case Call(id, fun)       => Call(id, () => fun().map(f))
+          case AlignedContext(fun) => AlignedContext(env => fun(env).map(f))
+          case Pure(a)             => Pure(f(a))
+          case FlatMap(fa, fun)    => FlatMap(fa, a => fun(a).map(f))
 
       def flatMap[B](f: A => Alignment[D, B]): Alignment[D, B] =
         FlatMap(fa, f)
