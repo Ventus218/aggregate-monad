@@ -115,139 +115,147 @@ object Test:
   import aggregate.NValues.*
   import AlignmentModule.*
   import aggregate.AggregateAPI.Device
+  import aggregate.AggregateAPI.Input
 
-  type Aggregate[A] =
-    Device ?=> Map[String, NValue[Any]] ?=> Alignment[Device, NValue[A]]
+  opaque type Aggregate[+A] = Grammar[A]
+  private enum Grammar[+A]:
+    case Exchange[A, S](
+        default: Aggregate[S],
+        body: Aggregate[S] => (Aggregate[A], Aggregate[S])
+    ) extends Aggregate[A]
+    case NFold[A, B](init: Aggregate[A], a: Aggregate[B], f: (A, B) => A)
+        extends Aggregate[A]
+    case Mux(cond: Aggregate[Boolean], th: Aggregate[A], el: Aggregate[A])
+    case Call(id: String, f: Aggregate[() => Aggregate[A]])
+    case Sensor(name: Aggregate[String])
+    case Uid extends Aggregate[Device]
+    case Self(a: Aggregate[A])
+    case OverrideDevice[A](fa: Aggregate[A], d: Aggregate[Device], f: A => A)
+        extends Aggregate[A]
+    case Pure(nvalues: NValue[A])
+    case FlatMap[A, B](a: Aggregate[A], f: NValue[A] => Aggregate[B])
+        extends Aggregate[B]
 
-  // TODO:
-  private def _uid: Device ?=> Device = summon[Device]
-  private def _sensors: Map[String, NValue[Any]] ?=> Map[String, NValue[Any]] =
-    summon[Map[String, NValue[Any]]]
+    // TODO: here just until we can implement call
+    case Branch(cond: Aggregate[Boolean], th: Aggregate[A], el: Aggregate[A])
+  import Grammar.*
 
   def exchange[A, S](default: Aggregate[S])(
       body: Aggregate[S] => (Aggregate[A], Aggregate[S])
   ): Aggregate[A] =
-    for
-      default <- default
-      defaultValue = default(_uid)
-      nbrMessages <- Alignment.alignedContext[Device, NValue[S]](ctx =>
-        val overrides =
-          ctx.toMap.map((d, tree) =>
-            (
-              d,
-              tree.value
-                .asInstanceOf[NValue[A]](d)
-                .asInstanceOf[defaultValue.type]
-            )
-          )
-        NValue(defaultValue, overrides)
-      )
-      (ret, send) = body(Alignment.pure(nbrMessages))
-      ret <- ret
-      send <- send
-      ret <- Alignment.xc(ret, send)
-    yield ret
+    Exchange(default, body)
 
   def nfold[A, B](init: Aggregate[A])(a: Aggregate[B])(
       f: (A, B) => A
   ): Aggregate[A] =
-    for
-      init <- init
-      a <- a
-      res <- Alignment.alignedContext[Device, NValue[A]](ctx =>
-        val neighbours = ctx.toMap.keySet - _uid
-        NValue(neighbours.foldLeft(init(_uid))((res, d) => f(res, a(d))))
-      )
-    yield res
+    NFold(init, a, f)
   def mux[A](cond: Aggregate[Boolean])(th: Aggregate[A])(
       el: Aggregate[A]
   ): Aggregate[A] =
-    for
-      cond <- cond
-      th <- th
-      el <- el
-    yield if cond(_uid) then th else el
+    Mux(cond, th, el)
   def call[A](f: Aggregate[() => Aggregate[A]]): Aggregate[A] =
-    // TODO:
-    val id: String = ???
-    for
-      f <- f
-      res <- Alignment.call(id, () => f(_uid)())
-    yield res
+    Call(???, f)
   def sensor[A](name: Aggregate[String]): Aggregate[A] =
-    for name <- name
-    yield _sensors(name(_uid)).asInstanceOf[NValue[A]]
+    Sensor(name)
   def uid: Aggregate[Device] =
-    pure(_uid)
+    Uid
   extension [A](a: Aggregate[A])
     def self: Aggregate[A] =
-      for a <- a
-      yield NValue(a(_uid))
+      Self(a)
 
     def overrideDevice(d: Aggregate[Device], f: A => A): Aggregate[A] =
-      for
-        a <- a
-        d <- d
-      yield a.setWith(d(_uid), f)
+      OverrideDevice(a, d, f)
 
     def map[B](f: NValue[A] => NValue[B]): Aggregate[B] =
-      import AlignmentModule.map as m
-      a.m(f)
+      a.flatMap(a => pureNV(f(a)))
     def flatMap[B](f: NValue[A] => Aggregate[B]): Aggregate[B] =
-      import AlignmentModule.flatMap as fm
-      // a.fm(f) // Does not work
-      a.fm(f(_))
+      FlatMap(a, f)
 
   def pure[A](a: A): Aggregate[A] =
     pureNV(NValue(a))
   def pureNV[A](a: NValue[A]): Aggregate[A] =
-    Alignment.pure(a)
+    Pure(a)
 
   // TODO: just for the moment
   def branch[A](cond: Aggregate[Boolean])(th: Aggregate[A])(
       el: Aggregate[A]
   ): Aggregate[A] =
-    for
-      cond <- cond
-      condition = cond(_uid)
-      id = s"branch-$condition"
-      res <- Alignment.call(id, () => if condition then th else el)
-    yield res
+    Branch(cond, th, el)
 
-  case class Input(uid: Device, sensors: Map[String, NValue[Any]])
+  private def fromAlignmentContext[A](
+      f: Env[Device] => NValue[A]
+  ): Alignment[Device, NValue[A]] =
+    Alignment.alignedContext(f)
 
-  given conv[A]: Conversion[NValue[A], Aggregate[A]] with
-    def apply(x: NValue[A]): Aggregate[A] = pureNV(x)
-  import scala.language.implicitConversions
-
-  val d0: Device = Device.fromInt(0)
-  val d1: Device = Device.fromInt(1)
-  val d2: Device = Device.fromInt(2)
-  def countAlignedNeighbours: Aggregate[Int] =
-    nfold(init = pure(0))(pure(1))(_ + _)
-  def cond: Aggregate[Boolean] = conv(NValue(true, Map((d1 -> false))))
-
-  def program: Aggregate[Int] =
-    for
-      count <- countAlignedNeighbours
-      res <- branch(cond)(conv(count))(conv(count))
-    yield res
-  def program2: Aggregate[Int] =
-    branch(cond)(countAlignedNeighbours)(countAlignedNeighbours)
-
-  @main def main: Unit =
-    given sensors: Map[String, NValue[Any]] = Map()
-    def prog: Aggregate[Int] = program2
-    val d0vt0 = prog(using d0).run(Env.fromMap(Map()))
-    val d1vt0 = prog(using d1).run(Env.fromMap(Map()))
-    val d2vt0 = prog(using d2).run(Env.fromMap(Map()))
-    val env2 = Env.fromMap(Map((d0 -> d0vt0), (d1 -> d1vt0), (d2 -> d2vt0)))
-    val d0vt1 = prog(using d0).run(env2)
-    val d1vt1 = prog(using d1).run(env2)
-    println(d0vt0)
-    println()
-    println(d1vt0)
-    println()
-    println(d0vt1)
-    println()
-    println(d1vt1)
+  extension [A](a: Aggregate[A])
+    def runAggregate(using Env[Device], Input): AlignmentTree[NValue[A]] =
+      a.toAlignment.run(summon[Env[Device]])
+    def toAlignment(using input: Input): Alignment[Device, NValue[A]] =
+      val _uid = input.uid
+      val _sensors = input.sensors
+      a match
+        case Exchange(default, body) =>
+          for
+            default <- default.toAlignment
+            defaultValue = default(_uid)
+            nbrMessages <- fromAlignmentContext(ctx =>
+              val overrides =
+                ctx.toMap.map((d, tree) =>
+                  (d, tree.value.asInstanceOf[NValue[defaultValue.type]](d))
+                )
+              NValue(defaultValue, overrides)
+            )
+            (ret, send) = body(pureNV(nbrMessages))
+            ret <- ret.toAlignment
+            send <- send.toAlignment
+            ret <- Alignment.xc(ret, send)
+          yield ret
+        case NFold(init, a, f) =>
+          for
+            init <- init.toAlignment
+            a <- a.toAlignment
+            res <- Alignment.alignedContext[Device, NValue[A]](ctx =>
+              val neighbours = ctx.toMap.keySet - _uid
+              NValue(neighbours.foldLeft(init(_uid))((res, d) => f(res, a(d))))
+            )
+          yield res
+        case Mux(cond, th, el) =>
+          for
+            cond <- cond.toAlignment
+            th <- th.toAlignment
+            el <- el.toAlignment
+          yield if cond(_uid) then th else el
+        case Call(id, f) =>
+          for
+            f <- f.toAlignment
+            res <- Alignment.call(id, () => f(_uid)().toAlignment)
+          yield res
+        case Sensor(name) =>
+          for name <- name.toAlignment
+          yield _sensors(name(_uid)).asInstanceOf[NValue[A]]
+        case Uid =>
+          Alignment.pure(NValue(_uid))
+        case Self(a) =>
+          for a <- a.toAlignment
+          yield NValue(a(_uid))
+        case OverrideDevice(a, d, f) =>
+          for
+            a <- a.toAlignment
+            d <- d.toAlignment
+          yield a.setWith(d(_uid), f)
+        case FlatMap(a, f) =>
+          import AlignmentModule.flatMap as fm
+          // a.fm(f) // Does not work
+          a.toAlignment.fm(f(_).toAlignment)
+        case Pure(nvalues) =>
+          Alignment.pure(nvalues)
+        case Branch(cond, th, el) =>
+          for
+            cond <- cond.toAlignment
+            condition = cond(_uid)
+            id = s"branch-$condition"
+            res <- Alignment.call(
+              id,
+              () => if condition then th.toAlignment else el.toAlignment
+            )
+          yield res
