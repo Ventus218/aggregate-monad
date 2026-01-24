@@ -77,10 +77,14 @@ object AggregateAPI extends AggregateAPI:
         alignment.AlignmentModule.Env.fromMap(env.toMap)
       al.runAggregate(fa)
 
-  opaque type ValueTree[+A] = alignment.AlignmentModule.AlignmentTree[NValue[A]]
+  import alignment.Aggregate.TypeOfValue
+  opaque type ValueTree[+A] =
+    alignment.AlignmentModule.AlignmentTree[TypeOfValue[A]]
   extension [A](vt: ValueTree[A])
     def nv: NValue[A] =
-      vt.value
+      vt.value match
+        case TypeOfValue.NVal(nv)      => nv
+        case TypeOfValue.XC(ret, send) => ret
 
   object Env:
     def apply(m: Map[Device, ValueTree[Any]]): Env = m

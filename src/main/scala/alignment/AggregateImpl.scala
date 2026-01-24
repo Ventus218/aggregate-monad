@@ -73,43 +73,63 @@ object Aggregate:
   ): Aggregate[A] =
     Branch(cond, th, el)
 
+  enum TypeOfValue[+A]:
+    case NVal(nv: NValue[A])
+    case XC[R, S](ret: NValue[R], send: NValue[S]) extends TypeOfValue[R]
+    def value: NValue[A] =
+      this match
+        case NVal(nv)      => nv
+        case XC(ret, send) => ret
+
+  type AggregateAlignment[A] = Alignment[Device, TypeOfValue[A]]
+
   private def fromAlignmentContext[A](
-      f: Env[Device] => NValue[A]
-  ): Alignment[Device, NValue[A]] =
+      f: Env[Device] => AggregateAlignment[A]
+  ): AggregateAlignment[A] =
     Alignment.alignedContext(f)
 
   extension [A](a: Aggregate[A])
-    def runAggregate(using Env[Device], Input): AlignmentTree[NValue[A]] =
+    def runAggregate(using Env[Device], Input): AlignmentTree[TypeOfValue[A]] =
       a.toAlignment.run(summon[Env[Device]])
 
-    def toAlignment(using input: Input): Alignment[Device, NValue[A]] =
+    def toAlignment(using input: Input): Alignment[Device, TypeOfValue[A]] =
       val uid = input.uid
       val sensors = input.sensors
       a match
         case Exchange(default, body) =>
           for
             default <- default.toAlignment
-            defaultValue = default(uid)
-            nbrMessages <- fromAlignmentContext(ctx =>
+            defaultValue = default.value(uid)
+            ret <- fromAlignmentContext(ctx =>
               val overrides =
                 ctx.toMap.map((d, tree) =>
-                  (d, tree.value.asInstanceOf[NValue[defaultValue.type]](d))
+                  (
+                    d,
+                    tree.value
+                      .asInstanceOf[TypeOfValue.XC[A, defaultValue.type]]
+                      .send(d)
+                  )
                 )
-              NValue(defaultValue, overrides)
+              val nbrMessages = NValue(defaultValue, overrides)
+              val (ret, send) = body(pureNV(nbrMessages))
+              for
+                ret <- ret.toAlignment
+                send <- send.toAlignment
+              yield TypeOfValue.XC(ret.value, send.value)
             )
-            (ret, send) = body(pureNV(nbrMessages))
-            ret <- ret.toAlignment
-            send <- send.toAlignment
-            ret <- Alignment.xc(ret, send)
           yield ret
 
         case NFold(init, a, f) =>
           for
             init <- init.toAlignment
             a <- a.toAlignment
-            res <- Alignment.alignedContext[Device, NValue[A]](ctx =>
+            res <- fromAlignmentContext(ctx =>
               val neighbours = ctx.toMap.keySet - uid
-              NValue(neighbours.foldLeft(init(uid))((res, d) => f(res, a(d))))
+              val folded =
+                neighbours.foldLeft(init.value(uid))((res, d) =>
+                  f(res, a.value(d))
+                )
+              Alignment.pure(TypeOfValue.NVal(NValue(folded)))
             )
           yield res
 
@@ -118,41 +138,43 @@ object Aggregate:
             cond <- cond.toAlignment
             th <- th.toAlignment
             el <- el.toAlignment
-          yield if cond(uid) then th else el
+          yield if cond.value(uid) then th else el
 
         case Call(id, f) =>
           for
             f <- f.toAlignment
-            res <- Alignment.call(id, () => f(uid)().toAlignment)
+            res <- Alignment.call(id, () => f.value(uid)().toAlignment)
           yield res
 
         case Sensor(name) =>
           for name <- name.toAlignment
-          yield sensors(name(uid)).asInstanceOf[NValue[A]]
+          yield TypeOfValue.NVal(
+            sensors(name.value(uid)).asInstanceOf[NValue[A]]
+          )
 
         case Uid =>
-          Alignment.pure(NValue(uid))
+          Alignment.pure(TypeOfValue.NVal(NValue(uid)))
 
         case Self(a) =>
           for a <- a.toAlignment
-          yield NValue(a(uid))
+          yield TypeOfValue.NVal(NValue(a.value(uid)))
 
         case OverrideDevice(a, d, f) =>
           for
             a <- a.toAlignment
             d <- d.toAlignment
-          yield a.setWith(d(uid), f)
+          yield TypeOfValue.NVal(a.value.setWith(d.value(uid), f))
 
         case FlatMap(a, f) =>
-          a.toAlignment.flatMap(f(_).toAlignment)
+          a.toAlignment.flatMap(v => f(v.value).toAlignment)
 
         case Pure(nvalues) =>
-          Alignment.pure(nvalues)
+          Alignment.pure(TypeOfValue.NVal(nvalues))
 
         case Branch(cond, th, el) =>
           for
             cond <- cond.toAlignment
-            condition = cond(uid)
+            condition = cond.value(uid)
             id = s"branch-$condition"
             res <- Alignment.call(
               id,

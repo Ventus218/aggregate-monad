@@ -3,9 +3,9 @@ package alignment
 object AlignmentModule:
   opaque type Alignment[D, +A] = Grammar[D, A]
   private enum Grammar[D, +A]:
-    case XC(ret: A, send: Any)
     case Call(id: String, f: () => Alignment[D, A])
-    case AlignedContext[D, A](f: (Env[D]) => A) extends Grammar[D, A]
+    case AlignedContext[D, A](f: (Env[D]) => Alignment[D, A])
+        extends Grammar[D, A]
     case Pure[D, A](a: A) extends Grammar[D, A]
     case FlatMap[D, A, B](fa: Grammar[D, A], f: A => Grammar[D, B])
         extends Grammar[D, B]
@@ -17,10 +17,7 @@ object AlignmentModule:
     def call[D, A](id: String, f: () => Alignment[D, A]): Alignment[D, A] =
       Call(id, f)
 
-    def xc[D, A](ret: A, send: Any): Alignment[D, A] =
-      XC(ret, send)
-
-    def alignedContext[D, A](f: (Env[D]) => A): Alignment[D, A] =
+    def alignedContext[D, A](f: (Env[D]) => Alignment[D, A]): Alignment[D, A] =
       AlignedContext(f)
 
     extension [D, A](fa: Alignment[D, A])
@@ -35,14 +32,13 @@ object AlignmentModule:
         val env: Env[D] = unsafeEnv.alignWith(fa)
         fa match
           case AlignedContext(f) =>
-            AlignmentTree.Val(f(env.asInstanceOf[Env[D]]))
+            val alignment = f(env.asInstanceOf[Env[D]])
+            alignment.run(env) // TODO: enterChild??
           case Pure(a) =>
             AlignmentTree.Val(a)
           case Call(id, f) =>
             val runA = f().run(env.enterChildN(0))
             AlignmentTree.Call(id, runA)
-          case XC(ret, send) =>
-            AlignmentTree.XC(ret, send)
           case FlatMap(fa, f) =>
             val left = fa.run(env.enterChildN(0))
             val right = f(left.value).run(env.enterChildN(1))
@@ -50,7 +46,6 @@ object AlignmentModule:
 
   enum AlignmentTree[+A] private:
     case Val(value: A)
-    case XC(ret: A, send: Any)
     case Call(id: String, right: AlignmentTree[A])
     case Next(left: AlignmentTree[Any], right: AlignmentTree[A])
     override def toString(): String =
@@ -59,10 +54,6 @@ object AlignmentModule:
         t match
           case Val(v) =>
             val head = s"${indent}NVal(v: $v)"
-            head
-
-          case XC(ret, send) =>
-            val head = s"${indent}XC(v: ${t.value}, send: $send)"
             head
 
           case Call(id, right) =>
@@ -83,13 +74,11 @@ object AlignmentModule:
       def value: A =
         t match
           case AlignmentTree.Val(v)         => v
-          case AlignmentTree.XC(ret, _)     => ret
           case AlignmentTree.Call(_, right) => right.value
           case AlignmentTree.Next(_, right) => right.value
       private[AlignmentModule] def children: Seq[AlignmentTree[Any]] =
         t match
           case AlignmentTree.Val(value)        => Seq()
-          case AlignmentTree.XC(ret, send)     => Seq()
           case AlignmentTree.Call(id, right)   => Seq(right)
           case AlignmentTree.Next(left, right) => Seq(left, right)
 
