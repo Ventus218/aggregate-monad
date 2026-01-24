@@ -45,8 +45,8 @@ trait AggregateAPI:
 
 object AggregateAPI extends AggregateAPI:
   opaque type Device = Int
-  opaque type Aggregate[+A] = alignment.Test.Aggregate[A]
-  import alignment.Test as al
+  opaque type Aggregate[+A] = alignment.Aggregate.Aggregate[A]
+  import alignment.Aggregate as al
 
   def sensor[A](name: Aggregate[String]): Aggregate[A] = al.sensor(name)
   def call[A](f: Aggregate[() => Aggregate[A]]): Aggregate[A] = al.call(f)
