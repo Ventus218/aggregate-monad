@@ -57,12 +57,12 @@ object AlignmentModule:
             head
 
           case Call(id, right) =>
-            val head = s"${indent}Call(id: $id, v: ${t.value})"
+            val head = s"${indent}Call(id: $id)"
             val r = loop(right, level + 1)
             s"$head\n$r"
 
           case Next(first, last) =>
-            val head = s"${indent}Next(v: ${t.value})"
+            val head = s"${indent}Next"
             val f = loop(first, level + 1)
             val l = loop(last, level + 1)
             s"$head\n$f\n$l"
