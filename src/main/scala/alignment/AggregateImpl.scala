@@ -26,7 +26,11 @@ object Aggregate:
         extends Aggregate[B]
 
     // TODO: here just until we can implement call
-    case Branch(cond: Aggregate[Boolean], th: Aggregate[A], el: Aggregate[A])
+    case Branch(
+        cond: Aggregate[Boolean],
+        th: () => Aggregate[A],
+        el: () => Aggregate[A]
+    )
   import Grammar.*
 
   def exchange[A, S](default: Aggregate[S])(
@@ -68,10 +72,10 @@ object Aggregate:
       FlatMap(a, f)
 
   // TODO: just for the moment
-  def branch[A](cond: Aggregate[Boolean])(th: Aggregate[A])(
-      el: Aggregate[A]
+  def branch[A](cond: Aggregate[Boolean])(th: => Aggregate[A])(
+      el: => Aggregate[A]
   ): Aggregate[A] =
-    Branch(cond, th, el)
+    Branch(cond, () => th, () => el)
 
   enum TypeOfValue[+A]:
     case NVal(nv: NValue[A])
@@ -178,6 +182,6 @@ object Aggregate:
             id = s"branch-$condition"
             res <- Alignment.call(
               id,
-              () => if condition then th.toAlignment else el.toAlignment
+              () => (if condition then th() else el()).toAlignment
             )
           yield res

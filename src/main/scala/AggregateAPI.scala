@@ -25,8 +25,8 @@ trait AggregateAPI:
   ): Aggregate[A]
 
   // TODO: here just until we can implement call
-  def branch[A](cond: Aggregate[Boolean])(th: Aggregate[A])(
-      el: Aggregate[A]
+  def branch[A](cond: Aggregate[Boolean])(th: => Aggregate[A])(
+      el: => Aggregate[A]
   ): Aggregate[A]
 
   def uid: Aggregate[Device]
@@ -59,8 +59,8 @@ object AggregateAPI extends AggregateAPI:
   def mux[A](cond: Aggregate[Boolean])(th: Aggregate[A])(
       el: Aggregate[A]
   ): Aggregate[A] = al.mux(cond)(th)(el)
-  def branch[A](cond: Aggregate[Boolean])(th: Aggregate[A])(
-      el: Aggregate[A]
+  def branch[A](cond: Aggregate[Boolean])(th: => Aggregate[A])(
+      el: => Aggregate[A]
   ): Aggregate[A] = al.branch(cond)(th)(el)
   def uid: Aggregate[Device] = al.uid
 
