@@ -39,7 +39,7 @@ object AlignmentModule:
         fa match
           case AlignedContext(f) =>
             val alignment = f(env.asInstanceOf[Env[D]])
-            alignment.run(env) // TODO: enterChild??
+            alignment.run(env)
           case Pure(a) =>
             AlignmentTree.Val(a)
           case Call(id, f) =>

@@ -45,7 +45,6 @@ class Test extends org.scalatest.funsuite.AnyFunSuite:
     program.run(using env, Input(d1, Map())).nv shouldBe NValue(1)
     program.run(using env, Input(d2, Map())).nv shouldBe NValue(0)
 
-  // TODO: ask
   test("mux2"):
     val cond = NValue(true, Map((d1 -> true), (d2 -> false)))
     val trueNVal = NValue(1, Map((d1 -> 9)))
@@ -198,7 +197,6 @@ class Test extends org.scalatest.funsuite.AnyFunSuite:
     for
       a <- a
       b <- b
-      // sum = a + b // Why fails compiling?
       sum <- nvalGiven(a + b)
       // Here sum is 0[d2 -> 2, d3 -> 4, d4 -> 1]
       res <-
