@@ -216,3 +216,8 @@ class Test extends org.scalatest.funsuite.AnyFunSuite:
             }
         )
     yield res
+
+// Questions:
+// 1) How can i have a neighbour without having a message from him?
+// 2) When doing pointwise operations on NValues do we care about alignment?
+// 3) If we don't use SMonads we may work primarilly with Aggregate[NValue[A]] but is there a meaning in just an Aggregate[A]? Can we make it so that Aggregate[A] is equivalent to Aggregate[NValue[A]] where A is just lifted to an NValue?
