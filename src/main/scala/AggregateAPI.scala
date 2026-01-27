@@ -16,10 +16,6 @@ trait AggregateAPI:
       f: (A, B) => A
   ): Aggregate[A]
 
-  def mux[A](cond: Aggregate[Boolean])(th: Aggregate[A])(
-      el: Aggregate[A]
-  ): Aggregate[A]
-
   // TODO: here just until we can implement call
   def branch[A](cond: Aggregate[Boolean])(th: Aggregate[A])(
       el: Aggregate[A]
@@ -51,7 +47,6 @@ object AggregateAPI extends AggregateAPI:
     update,
     map,
     flatMap,
-    mux,
     branch
   }
 

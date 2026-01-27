@@ -26,6 +26,20 @@ object AggregateLib:
   //   import AggregateAPI.pureGiven
   //   call:
   //     mux(cond)(pureGiven(() => the))(pureGiven(() => els))
+  def mux[A](cond: Aggregate[Boolean])(th: Aggregate[A])(
+      el: Aggregate[A]
+  ): Aggregate[A] =
+    import AggregateAPI.pureGiven
+    import NValues.*
+    for
+      condNV <- cond.self
+      thNV <- th
+      elNV <- el
+    yield (for
+      condV <- condNV
+      thV <- thNV
+      elV <- elNV
+    yield if condV then thV else elV)
 
   def retsend[A](a: Aggregate[A]): (Aggregate[A], Aggregate[A]) =
     (a, a)
