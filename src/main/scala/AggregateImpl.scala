@@ -84,9 +84,6 @@ object AggregateImpl:
             a <- a.toAlignment
             d <- d.toAlignment
           yield a.setWith(d.selfValue, f)
-        // import aggregate.nonfree.AlignmentModule.Alignment.flatMap as fm
-        // import aggregate.nonfree.AlignmentModule.Alignment.map as m
-        // a.toAlignment.fm(a => d.toAlignment.m(d => a.setWith(d.selfValue, f)))
 
         case Sensor(name) =>
           for
