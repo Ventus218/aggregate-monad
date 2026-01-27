@@ -9,15 +9,12 @@ import AggregateEngineModule.{*, given}
 import NValues.*
 // import aggregate.Executor.DistributedSystem.platformSensor
 
-
 class BasicAggregateTest extends org.scalatest.funsuite.AnyFunSuite:
-  extension [A](nv: NValue[A])
-    def asValue: A = nv(selfDevice)
+  extension [A](nv: NValue[A]) def asValue: A = nv(selfDevice)
 
   test("pre"):
     val ag: Aggregate[Int] = 5
     ag.evalOne(using selfDevice)()
-
 
   test("value"):
     val ag: Aggregate[Int] = 5
@@ -27,7 +24,6 @@ class BasicAggregateTest extends org.scalatest.funsuite.AnyFunSuite:
     val nv: NValue[Int] = 5
     val ag: Aggregate[Int] = nv
     ag.repeat().take(4).map(_.top.asValue) shouldBe List(5, 5, 5, 5)
-
 
   test("operation on value"):
     val nv: NValue[Int] = 4
@@ -57,7 +53,6 @@ class BasicAggregateTest extends org.scalatest.funsuite.AnyFunSuite:
     val ag: Aggregate[Int] = rep(5)(identity)
     ag.repeat().take(4).map(_.top.asValue) shouldBe List(5, 5, 5, 5)
 
-
   test("Counter"):
     import AggregateLib.rep
     import AggregateLib.+
@@ -69,7 +64,8 @@ class BasicAggregateTest extends org.scalatest.funsuite.AnyFunSuite:
     import AggregateLib.+
     withDomainChange({ case 3 | 4 | 5 => Set() }):
       val ag = rep(5)(n => n + 1)
-      ag.repeat().take(8).map(_.top.asValue) shouldBe List(6, 7, 8, 6, 6, 6, 7, 8)
+      ag.repeat().take(8).map(_.top.asValue) shouldBe List(6, 7, 8, 6, 6, 6, 7,
+        8)
 
   test("Nested counter"):
     import AggregateLib.rep
@@ -83,14 +79,18 @@ class BasicAggregateTest extends org.scalatest.funsuite.AnyFunSuite:
     //   yield vn + vc
     ag.repeat().take(4).map(_.top.asValue) shouldBe List(1, 2, 3, 4)
 
-  test("Elaborating on a rep")
+  test("Elaborating on a rep"):
     import AggregateLib.counter
-    val ag = for
-      c <- counter(0)
-    yield for
-      vc <- c
-    yield vc < 3
-    ag.repeat().take(4).map(_.top.asValue) shouldBe List(true, true, false, false)
+    val ag =
+      for c <- counter(0)
+      yield for vc <- c
+      yield vc < 3
+    ag.repeat().take(4).map(_.top.asValue) shouldBe List(
+      true,
+      true,
+      false,
+      false
+    )
 
   test("Call to a non-aggregate program"):
     val f: () => Aggregate[Int] = () => 5
@@ -104,31 +104,31 @@ class BasicAggregateTest extends org.scalatest.funsuite.AnyFunSuite:
 
   test("Muxing by a rep"):
     import AggregateLib.mux
-    val agb: Aggregate[Boolean] = for
-      c <- counter(0)
-    yield for
-      vc <- c
-    yield vc < 3
+    import AggregateLib.counter
+    val agb: Aggregate[Boolean] =
+      for c <- counter(0)
+      yield for vc <- c
+      yield vc < 3
     val ag = mux(agb)(1)(2)
     ag.repeat().take(4).map(_.top.asValue) shouldBe List(1, 1, 2, 2)
 
   test("Muxing with restart"):
     import AggregateLib.mux
-    val agb = for
-      c <- counter(0)
-    yield for
-      vc <- c
-    yield vc < 3 || vc > 4
+    import AggregateLib.counter
+    val agb =
+      for c <- counter(0)
+      yield for vc <- c
+      yield vc < 3 || vc > 4
     val ag = mux(agb)(counter(0))(100)
     ag.repeat().take(6).map(_.top.asValue) shouldBe List(1, 2, 100, 100, 5, 6)
 
   test("Branching with restart"):
     import AggregateLib.branch
-    val agb = for
-      c <- counter(0)
-    yield for
-      vc <- c
-    yield vc < 3 || vc > 4
+    import AggregateLib.counter
+    val agb =
+      for c <- counter(0)
+      yield for vc <- c
+      yield vc < 3 || vc > 4
     val ag = branch(agb)(counter(0))(100)
     ag.repeat().take(6).map(_.top.asValue) shouldBe List(1, 2, 100, 100, 1, 2)
 
