@@ -1,42 +1,73 @@
 package aggregate.nonfree
+import aggregate.AggregateAPI.Env
+import aggregate.NValues.*
+import aggregate.ValueTrees.*
 
-object Env:
-  import aggregate.AggregateAPI.Device
-  import aggregate.ValueTrees.*
+object AlignmentModule:
+  opaque type Alignment[+A] = Grammar[A]
+  private enum Grammar[+A]:
+    case Xc(ret: Grammar[A], send: Grammar[Any])
+    case Call(id: String, f: () => Alignment[A])
+    case AlignedContext(f: (Env) => Alignment[A])
+    case Pure(a: NValue[A])
+    case FlatMap[A, +B](fa: Grammar[A], f: NValue[A] => Grammar[B])
+        extends Grammar[B]
+  import Grammar.*
 
-  opaque type Env = Map[Device, ValueTree[Any]]
+  object Alignment:
+    def pure[A](a: NValue[A]): Alignment[A] = Pure(a)
 
-  object Env:
-    private[nonfree] enum TreeNodeType:
-      case XC
-      case Call(id: String)
-      case NVal
-      case Sequence
+    def call[A](f: () => Alignment[A]): Alignment[A] =
+      Call(f.toString(), f)
 
-    def apply(env: Map[Device, ValueTree[Any]]): Env = env
-    def apply(env: (Device, ValueTree[Any])*): Env = Map(env*)
+    def xc[A](ret: Alignment[A], send: Alignment[Any]): Alignment[A] =
+      Xc(ret, send)
 
-  import Env.TreeNodeType
-  extension (env: Env)
-    private[nonfree] def alignWith(nodeType: TreeNodeType): Env =
-      env.filter((d, t) =>
-        // Since branches can only happen due to "Call"s i think it would
-        // be enough to just check for those, but for now we check each
-        // tree node.
-        (t, nodeType) match
-          case (t: ValueTree.Sequence[?], TreeNodeType.Sequence) => true
-          case (t: ValueTree.XC[?, ?], TreeNodeType.XC)          => true
-          case (t: ValueTree.NVal[?], TreeNodeType.NVal)         => true
-          case (ValueTree.Call(id1, _, _), TreeNodeType.Call(id2)) =>
-            id1 == id2
-          case _ => false
-      )
+    def alignedContext[A](f: (Env) => Alignment[A]): Alignment[A] =
+      AlignedContext(f)
 
-    private[nonfree] def enterChildN(n: Int): Env =
-      env.view.mapValues(_.children(n)).toMap
+    extension [A](fa: Alignment[A])
+      def map[B](f: NValue[A] => NValue[B]): Alignment[B] =
+        // // Less efficient (creates more nodes)
+        // fa.flatMap(a => Alignment.pure(f(a)))
+        fa match
+          case Call(id, fun) => Call(id, () => fun().map(f))
+          case Xc(ret, send) =>
+            Xc(ret.map(f), send) // TODO: check if not mapping send is correct
+          case AlignedContext(fun) => AlignedContext(env => fun(env).map(f))
+          case Pure(a)             => Pure(f(a))
+          case FlatMap(fa, fun)    => FlatMap(fa, a => fun(a).map(f))
 
-    private[nonfree] def alignedDevices: Set[Device] =
-      env.keySet
+      def flatMap[B](f: NValue[A] => Alignment[B]): Alignment[B] =
+        FlatMap(fa, f)
 
-    private[nonfree] def toMap: Map[Device, ValueTree[Any]] =
-      env
+      def run(unsafeEnv: Env): ValueTree[A] =
+        val env: Env = unsafeEnv.alignWith(fa)
+        fa match
+          case AlignedContext(f) =>
+            val alignment = f(env)
+            alignment.run(env)
+          case Pure(a) =>
+            ValueTree.NVal(a)
+          case Xc(ret, send) =>
+            val retTree = ret.run(env.enterChildN(0))
+            val sendTree = send.run(env.enterChildN(1))
+            ValueTree.Exchange(retTree, sendTree)
+          case Call(id, f) =>
+            val runA = f().run(env.enterChildN(0))
+            ValueTree.Call(id, runA)
+          case FlatMap(fa, f) =>
+            val left = fa.run(env.enterChildN(0))
+            val right = f(left.nv).run(env.enterChildN(1))
+            ValueTree.Sequence(left, right)
+
+    extension (env: Env)
+      private def alignWith[A](a: Alignment[A]): Env =
+        env.filter((_, t) =>
+          (t, a) match
+            case (ValueTree.Call(id1, _), Grammar.Call(id2, _)) =>
+              id1 == id2
+            case _ => true
+        )
+      private def enterChildN(n: Int): Env =
+        env.view.mapValues(_.children(n)).toMap

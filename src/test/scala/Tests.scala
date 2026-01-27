@@ -5,8 +5,6 @@ import org.scalatest.Assertion
 import org.scalatest.matchers.should.Matchers.*
 import aggregate.AggregateAPI.{given, *}
 import aggregate.AggregateLib.*
-import aggregate.nonfree.AggregateImpl.Input
-import aggregate.nonfree.Env.*
 import aggregate.ValueTrees.*
 import aggregate.NValues.*
 
