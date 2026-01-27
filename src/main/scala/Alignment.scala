@@ -1,4 +1,5 @@
-package aggregate.nonfree
+package aggregate
+
 import aggregate.AggregateAPI.Env
 import aggregate.NValues.*
 import aggregate.ValueTrees.*
