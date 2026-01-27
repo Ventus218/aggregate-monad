@@ -1,4 +1,4 @@
-package aggregate.nonfree
+package aggregate
 
 import aggregate.AggregateAPI.Device
 import aggregate.AggregateAPI.Input
@@ -61,7 +61,7 @@ object AggregateImpl:
       nv(input.uid)
 
   import aggregate.AggregateAPI.Env
-  import aggregate.nonfree.AlignmentModule.*
+  import aggregate.AlignmentModule.*
 
   extension [A](a: Aggregate[A])
     def run(using Env, Input): ValueTree[A] =

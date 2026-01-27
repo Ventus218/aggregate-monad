@@ -37,7 +37,7 @@ trait AggregateAPI:
   given nvalGiven[A]: Conversion[NValue[A], Aggregate[A]]
 
 object AggregateAPI extends AggregateAPI:
-  import aggregate.nonfree.AggregateImpl as impl
+  import aggregate.AggregateImpl as impl
 
   opaque type Device = Int
   opaque type Aggregate[+A] = impl.Aggregate[A]
@@ -75,11 +75,10 @@ object AggregateAPI extends AggregateAPI:
     def apply(env: (Device, ValueTree[Any])*): Env = Map(env*)
 
   given pureGiven[A]: Conversion[A, Aggregate[A]] with
-    def apply(x: A): Aggregate[A] =
-      aggregate.nonfree.AggregateImpl.pure(x)
+    def apply(x: A): Aggregate[A] = impl.pure(x)
+
   given nvalGiven[A]: Conversion[NValue[A], Aggregate[A]] with
-    def apply(x: NValue[A]): Aggregate[A] =
-      aggregate.nonfree.AggregateImpl.pure(x)
+    def apply(x: NValue[A]): Aggregate[A] = impl.pure(x)
 
   object Device:
     def fromInt(i: Int): Device = i
