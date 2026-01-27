@@ -19,17 +19,16 @@ object AggregateLib:
       b <- b
     yield f(a, b))
 
-  // TODO: restore once call can be implemented
-  // def branch[A](cond: Aggregate[Boolean])(the: => Aggregate[A])(
-  //     els: => Aggregate[A]
-  // ): Aggregate[A] =
-  //   import AggregateAPI.pureGiven
-  //   call:
-  //     mux(cond)(pureGiven(() => the))(pureGiven(() => els))
+  def branch[A](cond: Aggregate[Boolean])(th: => Aggregate[A])(
+      el: => Aggregate[A]
+  ): Aggregate[A] =
+    import AggregateAPI.pureGiven
+    call:
+      mux(cond)(pureGiven(() => th))(pureGiven(() => el))
+
   def mux[A](cond: Aggregate[Boolean])(th: Aggregate[A])(
       el: Aggregate[A]
   ): Aggregate[A] =
-    import AggregateAPI.pureGiven
     import NValues.*
     for
       condNV <- cond.self

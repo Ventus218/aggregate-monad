@@ -1,6 +1,7 @@
 package aggregate.nonfree
 
 import aggregate.AggregateAPI.Device
+import aggregate.AggregateAPI.Input
 import aggregate.NValues.NValue
 import aggregate.ValueTrees.*
 
@@ -13,7 +14,7 @@ object AggregateImpl:
     ) extends Aggregate[A]
     case NFold[A, B](init: Aggregate[A], a: Aggregate[B], f: (A, B) => A)
         extends Aggregate[A]
-    case Call(id: String, f: Aggregate[() => Aggregate[A]])
+    case Call(f: Aggregate[() => Aggregate[A]])
     case Sensor(name: Aggregate[String])
     case Uid extends Aggregate[Device]
     case Self(a: Aggregate[A])
@@ -23,15 +24,13 @@ object AggregateImpl:
     case FlatMap[A, B](a: Aggregate[A], f: NValue[A] => Aggregate[B])
         extends Aggregate[B]
 
-    // TODO: here just until we can implement call
-    case Branch(cond: Aggregate[Boolean], th: Aggregate[A], el: Aggregate[A])
-
   import Grammar.*
 
   def sensor[A](name: Aggregate[String]): Aggregate[A] =
     Sensor(name)
 
-  def call[A](f: Aggregate[() => Aggregate[A]]): Aggregate[A] = Call(???, f)
+  def call[A](f: Aggregate[() => Aggregate[A]]): Aggregate[A] =
+    Call(f)
 
   def exchange[A, S](default: Aggregate[S])(
       f: Aggregate[S] => (Aggregate[A], Aggregate[S])
@@ -40,11 +39,6 @@ object AggregateImpl:
   def nfold[A, B](init: Aggregate[A])(a: Aggregate[B])(
       f: (A, B) => A
   ): Aggregate[A] = NFold(init, a, f)
-
-  def branch[A](cond: Aggregate[Boolean])(th: Aggregate[A])(
-      el: Aggregate[A]
-  ): Aggregate[A] =
-    Branch(cond, th, el)
 
   def uid: Aggregate[Device] = Uid
 
@@ -59,98 +53,85 @@ object AggregateImpl:
 
     def flatMap[B](f: NValue[A] => Aggregate[B]): Aggregate[B] = FlatMap(fa, f)
 
-  def pureGiven[A]: Conversion[A, Aggregate[A]] = x => Pure(NValue(x))
-  def nvalGiven[A]: Conversion[NValue[A], Aggregate[A]] = x => Pure(x)
-
-  case class Input(
-      uid: Device,
-      sensors: Map[String, NValue[Any]]
-  )
+  def pure[A](a: A): Aggregate[A] = Pure(NValue(a))
+  def pure[A](a: NValue[A]): Aggregate[A] = Pure(a)
 
   extension [A](nv: NValue[A])
     private def selfValue(using input: Input): A =
       nv(input.uid)
 
-  import aggregate.nonfree.Env.*
-  import scala.language.implicitConversions
-
-  private given [A]: Conversion[Grammar[A], Env.TreeNodeType] with
-    def apply(x: Grammar[A]): Env.TreeNodeType =
-      x match
-        case Call(id, _)     => Env.TreeNodeType.Call(id)
-        case Exchange(_, _)  => Env.TreeNodeType.XC
-        case FlatMap(_, _)   => Env.TreeNodeType.Sequence
-        case Branch(_, _, _) => Env.TreeNodeType.Sequence
-        case _               => Env.TreeNodeType.NVal
+  import aggregate.AggregateAPI.Env
+  import aggregate.nonfree.AlignmentModule.*
 
   extension [A](a: Aggregate[A])
-    private def runAsChildN(n: Int)(using Env, Input): ValueTree[A] =
-      a.run(using summon[Env].enterChildN(n))
+    def run(using Env, Input): ValueTree[A] =
+      a.toAlignment.run(summon[Env])
 
-    def run(using envUnsafe: Env, input: Input): ValueTree[A] =
-      given env: Env = envUnsafe.alignWith(a)
+    private def toAlignment(using input: Input): Alignment[A] =
+      val uid = input.uid
+      val sensors = input.sensors
       a match
-        case Pure(nvalues) =>
-          // TODO: here i could "clean" nvalues from non aligned devices (if necessary)
-          // val map = env.alignedDevices.map(d => (d, nvalues(d))).toMap
-          // val cleanNvalue = NValue(nvalues.default, map)
-          ValueTree.nval(nvalues)
+        case Pure(nvalues) => Alignment.pure(nvalues)
 
-        case Uid =>
-          ValueTree.nval(NValue(input.uid))
+        case Uid => Alignment.pure(NValue(input.uid))
 
         case Self(a) =>
-          val aTree = a.runAsChildN(0)
-          ValueTree.nval(NValue(aTree.nv.selfValue), aTree)
+          for a <- a.toAlignment
+          yield NValue(a.selfValue)
 
         case OverrideDevice(a, d, f) =>
-          val aTree = a.runAsChildN(0)
-          val dTree = d.runAsChildN(1)
-          val updatedNValue = aTree.nv.setWith(dTree.nv(input.uid), f)
-          ValueTree.nval(updatedNValue, aTree, dTree)
+          for
+            a <- a.toAlignment
+            d <- d.toAlignment
+          yield a.setWith(d.selfValue, f)
+        // import aggregate.nonfree.AlignmentModule.Alignment.flatMap as fm
+        // import aggregate.nonfree.AlignmentModule.Alignment.map as m
+        // a.toAlignment.fm(a => d.toAlignment.m(d => a.setWith(d.selfValue, f)))
 
         case Sensor(name) =>
-          val nameTree = name.runAsChildN(0)
-          val sensorNValue =
-            input.sensors(nameTree.nv.selfValue).asInstanceOf[NValue[A]]
-          ValueTree.nval(sensorNValue, nameTree)
+          for
+            name <- name.toAlignment
+            sensorNValue = input.sensors(name.selfValue).asInstanceOf[NValue[A]]
+          yield sensorNValue
 
         case FlatMap(a, f) =>
-          val aTree = a.runAsChildN(0)
-          val bTree = f(aTree.nv).runAsChildN(1)
-          ValueTree.seq(aTree, bTree)
+          a.toAlignment.flatMap(a => f(a).toAlignment)
 
         case NFold(init, a, f) =>
-          val initTree = init.runAsChildN(0)
-          val aTree = a.runAsChildN(1)
-          val res = env.alignedDevices
-            .filterNot(_ == input.uid)
-            .foldLeft(initTree.nv.selfValue)((res, d) => f(res, aTree.nv(d)))
-          ValueTree.nval(NValue(res), initTree, aTree)
+          for
+            init <- init.toAlignment
+            a <- a.toAlignment
+            res <- Alignment.alignedContext(ctx =>
+              val neighbours = ctx.toMap.keySet - uid
+              val folded =
+                neighbours.foldLeft(init(uid))((res, d) => f(res, a(d)))
+              Alignment.pure(NValue(folded))
+            )
+          yield res
 
         case Exchange(default, body) =>
-          val defaultTree = default.runAsChildN(0)
-          val defaultValue = defaultTree.nv.selfValue
-          val overrides =
-            env.toMap.map((d, vt) =>
-              (d, vt.nv(d).asInstanceOf[defaultValue.type])
+          for
+            default <- default.toAlignment
+            defaultValue = default(uid)
+            ret <- Alignment.alignedContext(ctx =>
+              val overrides =
+                ctx.toMap.map((d, tree) =>
+                  (
+                    d,
+                    tree
+                      .asInstanceOf[ValueTree.Exchange[A, defaultValue.type]]
+                      .send
+                      .nv(d)
+                  )
+                )
+              val nbrMessages = NValue(defaultValue, overrides)
+              val (ret, send) = body(pure(nbrMessages))
+              Alignment.xc(ret.toAlignment, send.toAlignment)
             )
-          val (ret, send) = body(Pure(NValue(defaultValue, overrides)))
-          val retTree = ret.runAsChildN(1)
-          val sendTree = send.runAsChildN(2)
-          // not sure about what trees include in children
-          ValueTree.xc(retTree.nv, sendTree.nv, defaultTree, retTree, sendTree)
+          yield ret
 
-        case Call(id, f) =>
-          val fTree = f.runAsChildN(0)
-          val fun = fTree.nv.selfValue()
-          val funTree = fun.runAsChildN(1)
-          ValueTree.call(id, funTree.nv, fTree, funTree)
-
-        // TODO: Remove once we can implement it with call
-        case Branch(cond, th, el) =>
-          val condTree = cond.runAsChildN(0)
-          val condition = condTree.nv.selfValue
-          val id = s"branch-$condition"
-          val call = Call(id, pureGiven(() => if condition then th else el))
-          ValueTree.seq(condTree, call.runAsChildN(1))
+        case Call(f) =>
+          for
+            f <- f.toAlignment
+            call <- Alignment.call(() => f.selfValue().toAlignment)
+          yield call

@@ -4,83 +4,45 @@ object ValueTrees:
   import NValues.*
 
   enum ValueTree[+A]:
-    case Sequence(first: ValueTree[Any], last: ValueTree[A])
-    case NVal(nv: NValue[A], children: Seq[ValueTree[Any]])
-    case XC[+R, +S](
-        ret: NValue[R],
-        send: NValue[S],
-        children: Seq[ValueTree[Any]]
+    case Sequence(before: ValueTree[Any], after: ValueTree[A])
+    case NVal(nv: NValue[A])
+    case Exchange[+R, +S](
+        ret: ValueTree[R],
+        send: ValueTree[S]
     ) extends ValueTree[R]
-    case Call(id: String, nv: NValue[A], children: Seq[ValueTree[Any]])
+    case Call(id: String, f: ValueTree[A])
 
     override def toString(): String =
-      def loop(t: ValueTree[Any], level: Int): String =
+      def indented(t: ValueTree[Any], level: Int): String =
+        val str = t match
+          case NVal(nv) =>
+            s"NVal(nv: $nv):"
+          case Exchange(ret, send) =>
+            val children = t.children.map(indented(_, level + 1)).mkString("\n")
+            s"XC:\n$children"
+          case Call(id, f) =>
+            val funStr = indented(f, level + 1)
+            s"Call(id: $id):\n$funStr"
+          case Sequence(before, after) =>
+            val children = t.children.map(indented(_, level + 1)).mkString("\n")
+            s"Sequence:\n$children"
+
         val indent = "  " * level
-        t match
-          case NVal(nv, ch) =>
-            val head = s"${indent}NVal(nv: $nv):"
-            val children =
-              if ch.isEmpty then ""
-              else ch.map(c => loop(c, level + 1)).mkString("\n")
-            if children.isEmpty then head else s"$head\n$children"
+        s"$indent$str"
 
-          case XC(ret, send, ch) =>
-            val head = s"${indent}XC(nv: $ret, send: $send):"
-            val children =
-              if ch.isEmpty then ""
-              else ch.map(c => loop(c, level + 1)).mkString("\n")
-            if children.isEmpty then head else s"$head\n$children"
-
-          case Call(id, nv, ch) =>
-            val head = s"${indent}Call(id: $id):"
-            val children =
-              if ch.isEmpty then ""
-              else ch.map(c => loop(c, level + 1)).mkString("\n")
-            if children.isEmpty then head else s"$head\n$children"
-
-          case Sequence(first, last) =>
-            val head = s"${indent}Sequence:"
-            val f = loop(first, level + 1)
-            val l = loop(last, level + 1)
-            s"$head\n$f\n$l"
-
-      loop(this, 0)
+      indented(this, 0)
 
   import ValueTree.*
 
   extension [A](vt: ValueTree[A])
     def nv: NValue[A] = vt match
-      case NVal(nv, children)       => nv
-      case XC(ret, send, children)  => ret
-      case Call(id, nv, children)   => nv
-      case Sequence(children, last) => last.nv
+      case NVal(nv)                => nv
+      case Exchange(ret, send)     => ret.nv
+      case Call(id, f)             => f.nv
+      case Sequence(before, after) => after.nv
 
     def children: Seq[ValueTree[Any]] = vt match
-      case NVal(nv, children)      => children
-      case XC(ret, send, children) => children
-      case Call(id, nv, children)  => children
-      case Sequence(first, last)   => Seq(first, last)
-
-  object ValueTree:
-    def nval[A](nv: NValue[A], children: ValueTree[Any]*): ValueTree[A] =
-      NVal(nv, children)
-
-    def xc[R, S](
-        nv: NValue[R],
-        send: NValue[S],
-        children: ValueTree[Any]*
-    ): ValueTree[R] =
-      XC(nv, send, children)
-
-    def call[A](
-        id: String,
-        nv: NValue[A],
-        children: ValueTree[Any]*
-    ): ValueTree[A] =
-      Call(id, nv, children)
-
-    def seq[A](
-        first: ValueTree[Any],
-        last: ValueTree[A]
-    ): ValueTree[A] =
-      Sequence(first, last)
+      case NVal(nv)                => Seq()
+      case Exchange(ret, send)     => Seq(ret, send)
+      case Call(id, f)             => Seq(f)
+      case Sequence(before, after) => Seq(before, after)
