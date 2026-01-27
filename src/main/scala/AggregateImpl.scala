@@ -13,7 +13,6 @@ object AggregateImpl:
     ) extends Aggregate[A]
     case NFold[A, B](init: Aggregate[A], a: Aggregate[B], f: (A, B) => A)
         extends Aggregate[A]
-    case Mux(cond: Aggregate[Boolean], th: Aggregate[A], el: Aggregate[A])
     case Call(id: String, f: Aggregate[() => Aggregate[A]])
     case Sensor(name: Aggregate[String])
     case Uid extends Aggregate[Device]
@@ -41,11 +40,6 @@ object AggregateImpl:
   def nfold[A, B](init: Aggregate[A])(a: Aggregate[B])(
       f: (A, B) => A
   ): Aggregate[A] = NFold(init, a, f)
-
-  def mux[A](cond: Aggregate[Boolean])(th: Aggregate[A])(
-      el: Aggregate[A]
-  ): Aggregate[A] =
-    Mux(cond, th, el)
 
   def branch[A](cond: Aggregate[Boolean])(th: Aggregate[A])(
       el: Aggregate[A]
@@ -120,13 +114,6 @@ object AggregateImpl:
           val sensorNValue =
             input.sensors(nameTree.nv.selfValue).asInstanceOf[NValue[A]]
           ValueTree.nval(sensorNValue, nameTree)
-
-        case Mux(cond, th, el) =>
-          val condTree = cond.runAsChildN(0)
-          val thTree = th.runAsChildN(1)
-          val elTree = el.runAsChildN(2)
-          val result = if condTree.nv.selfValue then thTree.nv else elTree.nv
-          ValueTree.nval(result, condTree, thTree, elTree)
 
         case FlatMap(a, f) =>
           val aTree = a.runAsChildN(0)
