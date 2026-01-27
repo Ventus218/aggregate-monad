@@ -6,6 +6,13 @@ object AggregateLib:
   def nbr[A](default: Aggregate[A], send: Aggregate[A]): Aggregate[A] =
     exchange(default)(a => (a, send))
 
+  def rep[A](a: Aggregate[A])(f: Aggregate[A] => Aggregate[A]): Aggregate[A] =
+    exchange(a)(n => retsend(f(n.self)))
+
+  def counter(initial: Aggregate[Int]): Aggregate[Int] =
+    import scala.language.implicitConversions
+    rep(initial)(_ + 1)
+
   def pointwise[A, B, C](
       a: Aggregate[A],
       b: Aggregate[B],
