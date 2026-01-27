@@ -3,8 +3,8 @@ package aggregate
 object NValues:
   import aggregate.AggregateAPI.Device
 
-  case class NValue[+A](default: A, values: Map[Device, A] = Map()):
-    def apply(d: Device): A = values.get(d).getOrElse(default)
+  opaque type NValue[+A] = NValueImpl[A]
+  private case class NValueImpl[+A](default: A, values: Map[Device, A] = Map()):
     override def toString(): String =
       val overrides = values.toList
         .filter((_, a) => a != default)
@@ -12,7 +12,15 @@ object NValues:
         .mkString(", ")
       s"$default[$overrides]"
 
+  object NValue:
+    def apply[A](default: A, values: Map[Device, A] = Map()): NValue[A] =
+      NValueImpl(default, values.filter((_, a) => a != default))
+    def apply[A](default: A, values: (Device, A)*): NValue[A] =
+      NValue(default, values.toMap)
+
   extension [A](nv: NValue[A])
+    def apply(d: Device): A = nv.values.get(d).getOrElse(nv.default)
+
     def set(d: Device, value: A): NValue[A] =
       NValue(nv.default, nv.values.updated(d, value))
 
