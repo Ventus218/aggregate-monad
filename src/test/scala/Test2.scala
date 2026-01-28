@@ -132,28 +132,29 @@ class BasicAggregateTest extends org.scalatest.funsuite.AnyFunSuite:
     val ag = branch(agb)(counter(0))(100)
     ag.repeat().take(6).map(_.top.asValue) shouldBe List(1, 2, 100, 100, 1, 2)
 
-  // test("Ping-pong"):
-  //   import AggregateLib.retsend
-  //   val ag = retsend(0)(for i <- _ yield i + 1)
-  //   val (d1, d2, d3) = (newDevice(), newDevice(), newDevice())
-  //   val ds = Platform()
-  //     .withNeighbourhood(d1 -> Set(d1, d2, d3))
-  //     .withNeighbourhood(d2 -> Set(d1, d2, d3))
-  //     .withNeighbourhood(d3 -> Set(d1, d2, d3))
-  //     .asDistributedSystem(ag)
-  //   ds.fire(d1).top.asValue shouldBe 1
-  //   ds.fire(d2).top shouldBe MapWithDefault(1, Map(d1 -> 2, d2 -> 1))
-  //   ds.fire(d2).top shouldBe MapWithDefault(1, Map(d1 -> 2, d2 -> 2))
-  //   ds.fire(d2).top shouldBe MapWithDefault(1, Map(d1 -> 2, d2 -> 3))
-  //   ds.fire(d1).top shouldBe MapWithDefault(1, Map(d1 -> 2, d2 -> 3))
-  //   ds.fire(d2).top shouldBe MapWithDefault(1, Map(d1 -> 4, d2 -> 4))
-  //   ds.fire(d2).top shouldBe MapWithDefault(1, Map(d1 -> 4, d2 -> 5))
-  //   ds.fire(d2).top shouldBe MapWithDefault(1, Map(d1 -> 4, d2 -> 6))
-  //   ds.fire(d1).top shouldBe MapWithDefault(1, Map(d1 -> 3, d2 -> 5))
-  //   ds.fire(d3).top shouldBe MapWithDefault(1, Map(d1 -> 2, d2 -> 2, d3 -> 1))
-  //   ds.fire(d3).top shouldBe MapWithDefault(1, Map(d1 -> 2, d2 -> 2, d3 -> 2))
-  //   ds.fire(d1).top shouldBe MapWithDefault(1, Map(d1 -> 4, d2 -> 5, d3 -> 3))
-  //
+  test("Ping-pong"):
+    import AggregateLib.retsend
+    import AggregateLib.+
+    val ag = exchange(0)(n => retsend(n + 1))
+    val (d1, d2, d3) = (newDevice(), newDevice(), newDevice())
+    val ds = Platform()
+      .withNeighbourhood(d1 -> Set(d1, d2, d3))
+      .withNeighbourhood(d2 -> Set(d1, d2, d3))
+      .withNeighbourhood(d3 -> Set(d1, d2, d3))
+      .asDistributedSystem(ag)
+    ds.fire(d1).top.asValue shouldBe 1
+    ds.fire(d2).top shouldBe NValue(1, Map(d1 -> 2, d2 -> 1))
+    ds.fire(d2).top shouldBe NValue(1, Map(d1 -> 2, d2 -> 2))
+    ds.fire(d2).top shouldBe NValue(1, Map(d1 -> 2, d2 -> 3))
+    ds.fire(d1).top shouldBe NValue(1, Map(d1 -> 2, d2 -> 3))
+    ds.fire(d2).top shouldBe NValue(1, Map(d1 -> 4, d2 -> 4))
+    ds.fire(d2).top shouldBe NValue(1, Map(d1 -> 4, d2 -> 5))
+    ds.fire(d2).top shouldBe NValue(1, Map(d1 -> 4, d2 -> 6))
+    ds.fire(d1).top shouldBe NValue(1, Map(d1 -> 3, d2 -> 5))
+    ds.fire(d3).top shouldBe NValue(1, Map(d1 -> 2, d2 -> 2, d3 -> 1))
+    ds.fire(d3).top shouldBe NValue(1, Map(d1 -> 2, d2 -> 2, d3 -> 2))
+    ds.fire(d1).top shouldBe NValue(1, Map(d1 -> 4, d2 -> 5, d3 -> 3))
+
   // test("Branching ping-pong with a sensor"):
   //   import AggregateLib.{branch, retsend}
   //   var cond = false
@@ -164,43 +165,45 @@ class BasicAggregateTest extends org.scalatest.funsuite.AnyFunSuite:
   //     .withNeighbourhood(d2 -> Set(d1, d2))
   //     .asDistributedSystem(agf)
   //   ds.fire(d1).top.asValue shouldBe 1
-  //   ds.fire(d2).top shouldBe MapWithDefault(1, Map(d1 -> 2))
-  //   ds.fire(d2).top shouldBe MapWithDefault(1, Map(d1 -> 2, d2 -> 2))
+  //   ds.fire(d2).top shouldBe NValue(1, Map(d1 -> 2))
+  //   ds.fire(d2).top shouldBe NValue(1, Map(d1 -> 2, d2 -> 2))
   //   cond = true // sensor change
   //   ds.fire(d2).top.asValue shouldBe 0
   //   cond = false // sensor change
-  //   ds.fire(d1).top shouldBe MapWithDefault(1, Map(d1 -> 2))
-  //   ds.fire(d2).top shouldBe MapWithDefault(1, Map(d1 -> 2))
-  //   ds.fire(d2).top shouldBe MapWithDefault(1, Map(d1 -> 2, d2 -> 2))
-  //
-  // test("Folding a ping-pong"):
-  //   import AggregateLib.retsend
-  //   val ag = for
-  //     n <- retsend(0)(for i <- _ yield i + 1)
-  //   yield for
-  //     i <- nfold(0)(_ max _)(n)
-  //   yield i
-  //   val (d1, d2, d3) = (newDevice(), newDevice(), newDevice())
-  //   val ds = Platform()
-  //     .withNeighbourhood(d1 -> Set(d1, d2, d3))
-  //     .withNeighbourhood(d2 -> Set(d1, d2, d3))
-  //     .withNeighbourhood(d3 -> Set(d1, d2, d3))
-  //     .asDistributedSystem(ag)
-  //   ds.fires(d1, d2, d2, d1, d2).map(_.top.asValue) shouldBe List(0, 2, 2, 3, 4)
-  //
-  // val List(d1, d2, d3, d4) = List.fill(4)(newDevice())
-  // val platform3 = Platform()
-  //   .withNeighbourhood(d1 -> Set(d1, d2, d3))
-  //   .withNeighbourhood(d2 -> Set(d1, d2, d3))
-  //   .withNeighbourhood(d3 -> Set(d1, d2, d3))
-  // val platformAdHoc = Platform()
-  //   .withNeighbourhood(d1 -> Set(d1, d2))
-  //   .withNeighbourhood(d2 -> Set(d1, d2, d3))
-  //   .withNeighbourhood(d3 -> Set(d2, d3, d4))
-  //   .withNeighbourhood(d4 -> Set(d2, d3, d4))
-  //
+  //   ds.fire(d1).top shouldBe NValue(1, Map(d1 -> 2))
+  //   ds.fire(d2).top shouldBe NValue(1, Map(d1 -> 2))
+  //   ds.fire(d2).top shouldBe NValue(1, Map(d1 -> 2, d2 -> 2))
+
+  test("Folding a ping-pong"):
+    import AggregateLib.retsend
+    import AggregateLib.+
+    import AggregateAPI.nvalGiven
+    val ag =
+      for
+        n <- exchange(0)(n => retsend(n + 1))
+        res <- nfold(init = 0)(n)(_ max _)
+      yield res
+    val (d1, d2, d3) = (newDevice(), newDevice(), newDevice())
+    val ds = Platform()
+      .withNeighbourhood(d1 -> Set(d1, d2, d3))
+      .withNeighbourhood(d2 -> Set(d1, d2, d3))
+      .withNeighbourhood(d3 -> Set(d1, d2, d3))
+      .asDistributedSystem(ag)
+    ds.fires(d1, d2, d2, d1, d2).map(_.top.asValue) shouldBe List(0, 2, 2, 3, 4)
+
+  val List(d1, d2, d3, d4) = List.fill(4)(newDevice())
+  val platform3 = Platform()
+    .withNeighbourhood(d1 -> Set(d1, d2, d3))
+    .withNeighbourhood(d2 -> Set(d1, d2, d3))
+    .withNeighbourhood(d3 -> Set(d1, d2, d3))
+  val platformAdHoc = Platform()
+    .withNeighbourhood(d1 -> Set(d1, d2))
+    .withNeighbourhood(d2 -> Set(d1, d2, d3))
+    .withNeighbourhood(d3 -> Set(d2, d3, d4))
+    .withNeighbourhood(d4 -> Set(d2, d3, d4))
+
   // test("hopGradient"):
-  //   import lib.AggregateLib.*
+  //   import AggregateLib.*
   //   val ds = Platform()
   //     .withNeighbourhood(d1 -> Set(d1, d2))
   //     .withNeighbourhood(d2 -> Set(d1, d2, d3))
@@ -216,17 +219,22 @@ class BasicAggregateTest extends org.scalatest.funsuite.AnyFunSuite:
   //       hopGradient(platformSensor("src"))
   //
   //   Seq(
-  //     d2 -> Int.MaxValue, d1 -> 0, d2 -> 1, d4 -> Int.MaxValue, d3 -> 2, d4 -> 3
+  //     d2 -> Int.MaxValue,
+  //     d1 -> 0,
+  //     d2 -> 1,
+  //     d4 -> Int.MaxValue,
+  //     d3 -> 2,
+  //     d4 -> 3
   //   ).foreach: (device, result) =>
   //     ds.fire(device).top.asValue shouldBe result
-  //
   //
   // test("mid"):
   //   val ds = platform3
   //     .withSensor("mid", Map(d1 -> 1, d2 -> 2, d3 -> 3))
   //     .asDistributedSystem[Int]:
   //       platformSensor("mid")
-  //   ds.fires(d1, d2, d2, d1, d2, d3).map(_.top.asValue) shouldBe List(1, 2, 2, 1, 2, 3)
+  //   ds.fires(d1, d2, d2, d1, d2, d3).map(_.top.asValue) shouldBe List(1, 2, 2,
+  //     1, 2, 3)
   //
   // test("gatherMids"):
   //   import lib.AggregateLib.*
@@ -238,7 +246,12 @@ class BasicAggregateTest extends org.scalatest.funsuite.AnyFunSuite:
   //         m <- mid
   //         v <- nbr(mid)
   //       yield nfold(Set(m.selfValue))(_ ++ _)(v.map(Set(_)))
-  //   ds.fires(d1, d2, d3, d1).map(_.top.asValue) shouldBe List(Set(1), Set(1,2), Set(1,2,3), Set(1,2,3))
+  //   ds.fires(d1, d2, d3, d1).map(_.top.asValue) shouldBe List(
+  //     Set(1),
+  //     Set(1, 2),
+  //     Set(1, 2, 3),
+  //     Set(1, 2, 3)
+  //   )
   //
   // test("gossipIds"):
   //   import lib.AggregateLib.*
@@ -246,14 +259,29 @@ class BasicAggregateTest extends org.scalatest.funsuite.AnyFunSuite:
   //     .withSensor("mid", Map(d1 -> 1, d2 -> 2, d3 -> 3, d4 -> 4))
   //     .asDistributedSystem[Set[Int]]:
   //       def mid: Aggregate[Int] = platformSensor("mid")
-  //       def gossipEver[A](init: A)(op: (A, A) => A)(a: Aggregate[A]): Aggregate[A] =
+  //       def gossipEver[A](
+  //           init: A
+  //       )(op: (A, A) => A)(a: Aggregate[A]): Aggregate[A] =
   //         for
   //           nva <- a
-  //           g <- retsend[A](init)(v => nfold(op(v.selfValue, nva.selfValue))(op)(v))
+  //           g <- retsend[A](init)(v =>
+  //             nfold(op(v.selfValue, nva.selfValue))(op)(v)
+  //           )
   //         yield g
   //       gossipEver[Set[Int]](Set())(_ ++ _)(mid.map(_.map(Set(_))))
   //   ds.fires(d1, d2, d3, d1, d2, d1, d4, d3, d2, d1).map(_.top.asValue) shouldBe
-  //     List(Set(1), Set(1, 2), Set(1,2,3), Set(1,2), Set(1,2,3), Set(1,2,3), Set(1,2,3,4), Set(1,2,3,4), Set(1,2,3,4), Set(1,2,3,4))
+  //     List(
+  //       Set(1),
+  //       Set(1, 2),
+  //       Set(1, 2, 3),
+  //       Set(1, 2),
+  //       Set(1, 2, 3),
+  //       Set(1, 2, 3),
+  //       Set(1, 2, 3, 4),
+  //       Set(1, 2, 3, 4),
+  //       Set(1, 2, 3, 4),
+  //       Set(1, 2, 3, 4)
+  //     )
   //
   // test("gossipMinId"):
   //   import lib.AggregateLib.*
@@ -261,14 +289,25 @@ class BasicAggregateTest extends org.scalatest.funsuite.AnyFunSuite:
   //     .withSensor("mid", Map(d1 -> 1, d2 -> 2, d3 -> 3, d4 -> 4))
   //     .asDistributedSystem:
   //       def mid: Aggregate[Int] = platformSensor("mid")
-  //       def gossipEver[A](init: A)(op: (A, A) => A)(a: Aggregate[A]): Aggregate[A] =
+  //       def gossipEver[A](
+  //           init: A
+  //       )(op: (A, A) => A)(a: Aggregate[A]): Aggregate[A] =
   //         for
   //           nva <- a
-  //           g <- retsend[A](init)(v => nfold(op(v.selfValue, nva.selfValue))(op)(v))
+  //           g <- retsend[A](init)(v =>
+  //             nfold(op(v.selfValue, nva.selfValue))(op)(v)
+  //           )
   //         yield g
   //       gossipEver[Int](Int.MaxValue)(_ min _)(mid)
   //
   //   Seq(
-  //     d4 -> 4, d2 -> 2, d3 -> 2, d1 -> 1, d4 -> 2, d2 -> 1, d3 -> 1, d4 -> 1
+  //     d4 -> 4,
+  //     d2 -> 2,
+  //     d3 -> 2,
+  //     d1 -> 1,
+  //     d4 -> 2,
+  //     d2 -> 1,
+  //     d3 -> 1,
+  //     d4 -> 1
   //   ).foreach: (device, result) =>
   //     ds.fire(device).top.asValue shouldBe result
