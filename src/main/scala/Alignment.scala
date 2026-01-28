@@ -18,8 +18,8 @@ object AlignmentModule:
   object Alignment:
     def pure[A](a: NValue[A]): Alignment[A] = Pure(a)
 
-    def call[A](f: () => Alignment[A]): Alignment[A] =
-      Call(f.toString(), f)
+    def call[A](id: String, f: () => Alignment[A]): Alignment[A] =
+      Call(id, f)
 
     def xc[A](ret: Alignment[A], send: Alignment[Any]): Alignment[A] =
       Xc(ret, send)
