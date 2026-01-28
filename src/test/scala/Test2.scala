@@ -42,12 +42,17 @@ class BasicAggregateTest extends org.scalatest.funsuite.AnyFunSuite:
     val ag: Aggregate[Int] = nv.self
     ag.repeat().take(4).map(_.top.asValue) shouldBe List(5, 5, 5, 5)
 
-  // test("sensor"):
-  //   var sns = true
-  //   val ag: Aggregate[Boolean] = sensor(sns)
-  //   ag.repeat().take(4).map(_.top.asValue) shouldBe List(true, true, true, true)
-  //   sns = false
-  //   ag.repeat().take(4).map(_.top.asValue) shouldBe List(false, false, false, false)
+  test("sensor"):
+    var sns = true
+    val ag: Aggregate[Boolean] = sensor(sns)
+    ag.repeat().take(4).map(_.top.asValue) shouldBe List(true, true, true, true)
+    sns = false
+    ag.repeat().take(4).map(_.top.asValue) shouldBe List(
+      false,
+      false,
+      false,
+      false
+    )
 
   test("Constant rep"):
     import AggregateLib.rep
@@ -203,31 +208,39 @@ class BasicAggregateTest extends org.scalatest.funsuite.AnyFunSuite:
     .withNeighbourhood(d3 -> Set(d2, d3, d4))
     .withNeighbourhood(d4 -> Set(d2, d3, d4))
 
-  // test("hopGradient"):
-  //   import AggregateLib.*
-  //   val ds = Platform()
-  //     .withNeighbourhood(d1 -> Set(d1, d2))
-  //     .withNeighbourhood(d2 -> Set(d1, d2, d3))
-  //     .withNeighbourhood(d3 -> Set(d2, d3, d4))
-  //     .withNeighbourhood(d4 -> Set(d2, d3, d4))
-  //     .withSensor("src", Map(d1 -> true, d2 -> false, d3 -> false, d4 -> false))
-  //     .asDistributedSystem:
-  //       def hopGradient(src: Aggregate[Boolean]): Aggregate[Int] =
-  //         retsend(Int.MaxValue): v =>
-  //           mux(src)(0):
-  //             fold(Int.MaxValue)(_ min _):
-  //               v.map(n => if n == Int.MaxValue then n else n + 1)
-  //       hopGradient(platformSensor("src"))
-  //
-  //   Seq(
-  //     d2 -> Int.MaxValue,
-  //     d1 -> 0,
-  //     d2 -> 1,
-  //     d4 -> Int.MaxValue,
-  //     d3 -> 2,
-  //     d4 -> 3
-  //   ).foreach: (device, result) =>
-  //     ds.fire(device).top.asValue shouldBe result
+  test("hopGradient"):
+    import AggregateLib.*
+    val ds = Platform()
+      .withNeighbourhood(d1 -> Set(d1, d2))
+      .withNeighbourhood(d2 -> Set(d1, d2, d3))
+      .withNeighbourhood(d3 -> Set(d2, d3, d4))
+      .withNeighbourhood(d4 -> Set(d2, d3, d4))
+      .withSensor("src", Map(d1 -> true, d2 -> false, d3 -> false, d4 -> false))
+      .asDistributedSystem:
+        def hopGradient(src: Aggregate[Boolean]): Aggregate[Int] =
+          exchange(Int.MaxValue): v =>
+            retsend:
+              mux(src)(0):
+                nfold(init = Int.MaxValue)(
+                  v.map(_.map(v => if v == Int.MaxValue then v else v + 1))
+                )(_ min _)
+
+        // def hopGradient(src: Aggregate[Boolean]): Aggregate[Int] =
+        //   retsend(Int.MaxValue): v =>
+        //     mux(src)(0):
+        //       fold(Int.MaxValue)(_ min _):
+        //         v.map(n => if n == Int.MaxValue then n else n + 1)
+        hopGradient(platformSensor("src"))
+
+    Seq(
+      d2 -> Int.MaxValue,
+      d1 -> 0,
+      d2 -> 1,
+      d4 -> Int.MaxValue,
+      d3 -> 2,
+      d4 -> 3
+    ).foreach: (device, result) =>
+      ds.fire(device).top.asValue shouldBe result
 
   test("mid"):
     val ds = platform3
