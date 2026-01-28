@@ -40,7 +40,7 @@ object AggregateImpl:
           )
         val nbrMessages = NValue(defaultValue, overrides)
         val (ret, send) = f(pure(nbrMessages))
-        Alignment.xc(ret(id), send(id))
+        Alignment.exchange(ret(id), send(id))
       )
     yield ret
 
