@@ -52,10 +52,6 @@ object AggregateLib:
   def retsend[A](a: Aggregate[A]): (Aggregate[A], Aggregate[A]) =
     (a, a)
 
-  extension [A, B](a: (Aggregate[A], Aggregate[B]))
-    def fst: Aggregate[A] = a._1
-    def snd: Aggregate[B] = a._2
-
   extension [A](a: Aggregate[A])
     def updateSelf(f: A => A): Aggregate[A] =
       a.update(uid, f)
