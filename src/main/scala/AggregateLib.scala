@@ -59,6 +59,11 @@ object AggregateLib:
       a.update(uid, f)
     def updateSelf(b: A): Aggregate[A] =
       a.update(uid, _ => b)
+    def self: Aggregate[A] =
+      for
+        aNV <- a
+        uidNV <- uid
+      yield uidNV.map(uidValue => aNV(uidValue))
 
   // Equals
   extension [A](a: Aggregate[A])
