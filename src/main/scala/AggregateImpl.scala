@@ -118,7 +118,7 @@ object AggregateImpl:
                     tree
                       .asInstanceOf[ValueTree.Exchange[A, defaultValue.type]]
                       .send
-                      .nv(d)
+                      .nv(uid)
                   )
                 )
               val nbrMessages = NValue(defaultValue, overrides)

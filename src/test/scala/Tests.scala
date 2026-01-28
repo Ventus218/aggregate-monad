@@ -99,7 +99,7 @@ class Test extends org.scalatest.funsuite.AnyFunSuite:
     )
 
     d1vt1.nv(d1) shouldBe 2
-    d1vt1.nv(d2) shouldBe 2
+    d1vt1.nv(d2) shouldBe 3
 
   test("nfold"):
     def countAlignedNeighbours: Aggregate[Int] =
