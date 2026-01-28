@@ -2,126 +2,82 @@ package aggregate
 
 import aggregate.AggregateAPI.Device
 import aggregate.AggregateAPI.Input
+import aggregate.AggregateAPI.Env
 import aggregate.NValues.NValue
 import aggregate.ValueTrees.*
+import aggregate.AlignmentModule.Alignment
 
 object AggregateImpl:
-  opaque type Aggregate[+A] = Grammar[A]
-  private enum Grammar[+A]:
-    case Exchange[A, S](
-        default: Aggregate[S],
-        body: Aggregate[S] => (Aggregate[A], Aggregate[S])
-    ) extends Aggregate[A]
-    case NFold[A, B](init: Aggregate[A], a: Aggregate[B], f: (A, B) => A)
-        extends Aggregate[A]
-    case Call(f: Aggregate[() => Aggregate[A]])
-    case Sensor(s: () => Aggregate[A])
-    case Uid extends Aggregate[Device]
-    case OverrideDevice[A](fa: Aggregate[A], d: Aggregate[Device], f: A => A)
-        extends Aggregate[A]
-    case Pure(nvalues: NValue[A])
-    case FlatMap[A, B](a: Aggregate[A], f: NValue[A] => Aggregate[B])
-        extends Aggregate[B]
+  opaque type Aggregate[+A] = Device => Alignment[A]
 
-  import Grammar.*
+  def sensor[A](s: => Aggregate[A]): Aggregate[A] = s(_)
 
-  def sensor[A](s: => Aggregate[A]): Aggregate[A] =
-    Sensor(() => s)
-
-  def call[A](f: Aggregate[() => Aggregate[A]]): Aggregate[A] =
-    Call(f)
+  def call[A](f: Aggregate[() => Aggregate[A]]): Aggregate[A] = id =>
+    for
+      f <- f(id)
+      lambda = f(id)
+      call <- Alignment.call(
+        lambda.toString(),
+        () => lambda()(id)
+      )
+    yield call
 
   def exchange[A, S](default: Aggregate[S])(
       f: Aggregate[S] => (Aggregate[A], Aggregate[S])
-  ): Aggregate[A] = Exchange(default, f)
+  ): Aggregate[A] = id =>
+    for
+      default <- default(id)
+      defaultValue = default(id)
+      ret <- Alignment.alignedContext(ctx =>
+        val overrides =
+          ctx.toMap.map((d, tree) =>
+            (
+              d,
+              tree
+                .asInstanceOf[ValueTree.Exchange[A, defaultValue.type]]
+                .send
+                .nv(id)
+            )
+          )
+        val nbrMessages = NValue(defaultValue, overrides)
+        val (ret, send) = f(pure(nbrMessages))
+        Alignment.xc(ret(id), send(id))
+      )
+    yield ret
 
   def nfold[A, B](init: Aggregate[A])(a: Aggregate[B])(
       f: (A, B) => A
-  ): Aggregate[A] = NFold(init, a, f)
+  ): Aggregate[A] = id =>
+    for
+      init <- init(id)
+      a <- a(id)
+      res <- Alignment.alignedContext(ctx =>
+        val neighbours = ctx.toMap.keySet - id
+        val folded =
+          neighbours.foldLeft(init(id))((res, d) => f(res, a(d)))
+        Alignment.pure(NValue(folded))
+      )
+    yield res
 
-  def uid: Aggregate[Device] = Uid
+  def uid: Aggregate[Device] = id => Alignment.pure(NValue(id))
 
   extension [A](fa: Aggregate[A])
-    def update(d: Aggregate[Device], f: A => A): Aggregate[A] =
-      OverrideDevice(fa, d, f)
+    def update(d: Aggregate[Device], f: A => A): Aggregate[A] = id =>
+      for
+        fa <- fa(id)
+        d <- d(id)
+      yield fa.setWith(d(id), f)
 
   extension [A](fa: Aggregate[A])
     def map[B](f: NValue[A] => NValue[B]): Aggregate[B] =
-      fa.flatMap(a => Pure(f(a)))
+      fa.flatMap(a => pure(f(a)))
 
-    def flatMap[B](f: NValue[A] => Aggregate[B]): Aggregate[B] = FlatMap(fa, f)
+    def flatMap[B](f: NValue[A] => Aggregate[B]): Aggregate[B] = id =>
+      fa(id).flatMap(a => f(a)(id))
 
-  def pure[A](a: A): Aggregate[A] = Pure(NValue(a))
-  def pure[A](a: NValue[A]): Aggregate[A] = Pure(a)
-
-  extension [A](nv: NValue[A])
-    private def selfValue(using input: Input): A =
-      nv(input.uid)
-
-  import aggregate.AggregateAPI.Env
-  import aggregate.AlignmentModule.*
+  def pure[A](a: A): Aggregate[A] = pure(NValue(a))
+  def pure[A](a: NValue[A]): Aggregate[A] = _ => Alignment.pure(a)
 
   extension [A](a: Aggregate[A])
-    def run(using Env, Input): ValueTree[A] =
-      a.toAlignment.run(summon[Env])
-
-    private def toAlignment(using input: Input): Alignment[A] =
-      val uid = input.uid
-      a match
-        case Pure(nvalues) => Alignment.pure(nvalues)
-
-        case Uid => Alignment.pure(NValue(input.uid))
-
-        case OverrideDevice(a, d, f) =>
-          for
-            a <- a.toAlignment
-            d <- d.toAlignment
-          yield a.setWith(d.selfValue, f)
-
-        case Sensor(name) => name().toAlignment
-
-        case FlatMap(a, f) =>
-          a.toAlignment.flatMap(a => f(a).toAlignment)
-
-        case NFold(init, a, f) =>
-          for
-            init <- init.toAlignment
-            a <- a.toAlignment
-            res <- Alignment.alignedContext(ctx =>
-              val neighbours = ctx.toMap.keySet - uid
-              val folded =
-                neighbours.foldLeft(init(uid))((res, d) => f(res, a(d)))
-              Alignment.pure(NValue(folded))
-            )
-          yield res
-
-        case Exchange(default, body) =>
-          for
-            default <- default.toAlignment
-            defaultValue = default(uid)
-            ret <- Alignment.alignedContext(ctx =>
-              val overrides =
-                ctx.toMap.map((d, tree) =>
-                  (
-                    d,
-                    tree
-                      .asInstanceOf[ValueTree.Exchange[A, defaultValue.type]]
-                      .send
-                      .nv(uid)
-                  )
-                )
-              val nbrMessages = NValue(defaultValue, overrides)
-              val (ret, send) = body(pure(nbrMessages))
-              Alignment.xc(ret.toAlignment, send.toAlignment)
-            )
-          yield ret
-
-        case Call(f) =>
-          for
-            f <- f.toAlignment
-            lambda = f.selfValue
-            call <- Alignment.call(
-              lambda.toString(),
-              () => lambda().toAlignment
-            )
-          yield call
+    def run(using env: Env, input: Input): ValueTree[A] =
+      a(input.uid).run(env)
