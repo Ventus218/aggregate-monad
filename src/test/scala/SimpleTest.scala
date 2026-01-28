@@ -8,7 +8,7 @@ import aggregate.AggregateLib.*
 import aggregate.ValueTrees.*
 import aggregate.NValues.*
 
-class Test extends org.scalatest.funsuite.AnyFunSuite:
+class SimpleTest extends org.scalatest.funsuite.AnyFunSuite:
 
   val d1: Device = Device.fromInt(1)
   val d2: Device = Device.fromInt(2)
