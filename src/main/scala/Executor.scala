@@ -118,11 +118,12 @@ object Executor:
         platform.topology.keySet.toSeq(random.nextInt(platform.topology.size))
       randomDevice -> fire(randomDevice)
 
-  // object DistributedSystem:
-  //   def platformSensor[A, B](
-  //       name: String
-  //   ): DistributedSystem[B] ?=> Aggregate[A] =
-  //     sensor:
-  //       summon[DistributedSystem[B]].platform
-  //         .ssns(name)(summon[DistributedSystem[B]]._currentDevice)
-  //         .asInstanceOf[NValue[A]]
+  object DistributedSystem:
+    def platformSensor[A, B](
+        name: String
+    ): DistributedSystem[B] ?=> Aggregate[A] =
+      import scala.language.implicitConversions
+      sensor:
+        summon[DistributedSystem[B]].platform
+          .ssns(name)(summon[DistributedSystem[B]]._currentDevice)
+          .asInstanceOf[NValue[A]]

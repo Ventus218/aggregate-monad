@@ -6,7 +6,7 @@ def pingPong(): Aggregate[Int] =
   exchange(0)(n => retsend(n + 1))
 
 def senseDist: Aggregate[Float] =
-  sensor("senseDist")
+  sensor(???)
 
 def distanceEstimate(n: Aggregate[Float]): Aggregate[Float] =
   nfold(Float.PositiveInfinity)(n + senseDist)(math.min)

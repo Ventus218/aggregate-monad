@@ -7,12 +7,9 @@ trait AggregateAPI:
   type Device
   type Aggregate[_]
   type Env = Map[Device, ValueTree[Any]]
-  case class Input(
-      uid: Device,
-      sensors: Map[String, NValue[Any]]
-  )
+  case class Input(uid: Device)
 
-  def sensor[A](name: Aggregate[String]): Aggregate[A]
+  def sensor[A](s: => Aggregate[A]): Aggregate[A]
   def call[A](f: Aggregate[() => Aggregate[A]]): Aggregate[A]
   def exchange[A, S](default: Aggregate[S])(
       f: Aggregate[S] => (Aggregate[A], Aggregate[S])
@@ -41,7 +38,7 @@ object AggregateAPI extends AggregateAPI:
   opaque type Device = Int
   opaque type Aggregate[+A] = impl.Aggregate[A]
 
-  def sensor[A](name: Aggregate[String]): Aggregate[A] = impl.sensor(name)
+  def sensor[A](s: => Aggregate[A]): Aggregate[A] = impl.sensor(s)
 
   def call[A](f: Aggregate[() => Aggregate[A]]): Aggregate[A] = impl.call(f)
 
