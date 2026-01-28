@@ -183,7 +183,7 @@ class BasicAggregateTest extends org.scalatest.funsuite.AnyFunSuite:
   test("Folding a ping-pong"):
     import AggregateLib.retsend
     import AggregateLib.+
-    import AggregateAPI.nvalGiven
+    import AggregateAPI.fromNV
     val ag =
       for
         n <- exchange(0)(n => retsend(n + 1))
@@ -252,7 +252,7 @@ class BasicAggregateTest extends org.scalatest.funsuite.AnyFunSuite:
 
   test("gatherMids"):
     import AggregateLib.*
-    import AggregateAPI.nvalGiven
+    import AggregateAPI.fromNV
     val ds = platform3
       .withSensor("mid", Map(d1 -> 1, d2 -> 2, d3 -> 3))
       .asDistributedSystem[Set[Int]]:
@@ -270,7 +270,7 @@ class BasicAggregateTest extends org.scalatest.funsuite.AnyFunSuite:
 
   test("gossipIds"):
     import AggregateLib.*
-    import AggregateAPI.nvalGiven
+    import AggregateAPI.fromNV
     val ds = platformAdHoc
       .withSensor("mid", Map(d1 -> 1, d2 -> 2, d3 -> 3, d4 -> 4))
       .asDistributedSystem[Set[Int]]:
@@ -302,7 +302,7 @@ class BasicAggregateTest extends org.scalatest.funsuite.AnyFunSuite:
 
   test("gossipMinId"):
     import AggregateLib.*
-    import AggregateAPI.nvalGiven
+    import AggregateAPI.fromNV
     val ds = platformAdHoc
       .withSensor("mid", Map(d1 -> 1, d2 -> 2, d3 -> 3, d4 -> 4))
       .asDistributedSystem:

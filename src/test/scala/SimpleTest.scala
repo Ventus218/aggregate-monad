@@ -47,7 +47,7 @@ class SimpleTest extends org.scalatest.funsuite.AnyFunSuite:
   test("mux2"):
     val cond = NValue(true, Map(d1 -> true, d2 -> false))
     val trueNVal = NValue(1, Map(d1 -> 9))
-    val program = mux(cond)(nvalGiven(trueNVal))(0)
+    val program = mux(cond)(pure(trueNVal))(0)
     val env = Env()
 
     program.run(using uid = d1)(using env).nv shouldBe trueNVal
@@ -147,7 +147,7 @@ class SimpleTest extends org.scalatest.funsuite.AnyFunSuite:
 
     val program2 = for
       count <- countAlignedChild
-      res <- branch(sens)(nvalGiven(count))(count)
+      res <- branch(sens)(pure(count))(count)
     yield res
 
     val p2d1vt0 = program2.run(using uid = d1)(using Env())

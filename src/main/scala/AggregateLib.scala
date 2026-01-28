@@ -32,9 +32,8 @@ object AggregateLib:
   def branch[A](cond: Aggregate[Boolean])(th: => Aggregate[A])(
       el: => Aggregate[A]
   ): Aggregate[A] =
-    import AggregateAPI.pureGiven
     call:
-      mux(cond)(pureGiven(() => th))(pureGiven(() => el))
+      mux(cond)(pure(() => th))(pure(() => el))
 
   def mux[A](cond: Aggregate[Boolean])(th: Aggregate[A])(
       el: Aggregate[A]

@@ -24,12 +24,15 @@ trait AggregateAPI:
     def update(d: Aggregate[Device], f: A => A): Aggregate[A]
     def run(using uid: Device)(using Env): ValueTree[A]
 
+  def pure[A](a: A): Aggregate[A]
+  def pure[A](nv: NValue[A]): Aggregate[A]
+
   extension [A](fa: Aggregate[A])
     def map[B](f: NValue[A] => NValue[B]): Aggregate[B]
     def flatMap[B](f: NValue[A] => Aggregate[B]): Aggregate[B]
 
-  given pureGiven[A]: Conversion[A, Aggregate[A]]
-  given nvalGiven[A]: Conversion[NValue[A], Aggregate[A]]
+  given from[A]: Conversion[A, Aggregate[A]]
+  given fromNV[A]: Conversion[NValue[A], Aggregate[A]]
 
 object AggregateAPI extends AggregateAPI:
   import aggregate.AggregateImpl as impl
@@ -63,15 +66,15 @@ object AggregateAPI extends AggregateAPI:
     def flatMap[B](f: NValue[A] => Aggregate[B]): Aggregate[B] =
       impl.flatMap(fa)(f)
 
+  def pure[A](a: A): Aggregate[A] = impl.pure(a)
+  def pure[A](nv: NValue[A]): Aggregate[A] = impl.pure(nv)
+
   object Env:
     def apply(env: Map[Device, ValueTree[Any]]): Env = env
     def apply(env: (Device, ValueTree[Any])*): Env = Map(env*)
 
-  given pureGiven[A]: Conversion[A, Aggregate[A]] with
-    def apply(x: A): Aggregate[A] = impl.pure(x)
-
-  given nvalGiven[A]: Conversion[NValue[A], Aggregate[A]] with
-    def apply(x: NValue[A]): Aggregate[A] = impl.pure(x)
+  given from[A]: Conversion[A, Aggregate[A]] = pure
+  given fromNV[A]: Conversion[NValue[A], Aggregate[A]] = pure
 
   object Device:
     def fromInt(i: Int): Device = i
