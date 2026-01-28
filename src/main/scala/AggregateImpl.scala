@@ -1,7 +1,6 @@
 package aggregate
 
 import aggregate.AggregateAPI.Device
-import aggregate.AggregateAPI.Input
 import aggregate.AggregateAPI.Env
 import aggregate.NValues.NValue
 import aggregate.ValueTrees.*
@@ -79,5 +78,5 @@ object AggregateImpl:
   def pure[A](a: NValue[A]): Aggregate[A] = _ => Alignment.pure(a)
 
   extension [A](a: Aggregate[A])
-    def run(using env: Env, input: Input): ValueTree[A] =
-      a(input.uid).run(env)
+    def run(using uid: Device)(using env: Env): ValueTree[A] =
+      a(uid).run(env)

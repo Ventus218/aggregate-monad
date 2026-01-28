@@ -7,7 +7,6 @@ trait AggregateAPI:
   type Device
   type Aggregate[_]
   type Env = Map[Device, ValueTree[Any]]
-  case class Input(uid: Device)
 
   def sensor[A](s: => Aggregate[A]): Aggregate[A]
   def call[A](f: Aggregate[() => Aggregate[A]]): Aggregate[A]
@@ -23,7 +22,7 @@ trait AggregateAPI:
 
   extension [A](fa: Aggregate[A])
     def update(d: Aggregate[Device], f: A => A): Aggregate[A]
-    def run(using Env, Input): ValueTree[A]
+    def run(using uid: Device)(using Env): ValueTree[A]
 
   extension [A](fa: Aggregate[A])
     def map[B](f: NValue[A] => NValue[B]): Aggregate[B]
@@ -56,7 +55,7 @@ object AggregateAPI extends AggregateAPI:
     def update(d: Aggregate[Device], f: A => A): Aggregate[A] =
       impl.update(fa)(d, f)
 
-    def run(using Env, Input): ValueTree[A] = impl.run(fa)
+    def run(using uid: Device)(using Env): ValueTree[A] = impl.run(fa)
 
     def map[B](f: NValue[A] => NValue[B]): Aggregate[B] =
       impl.map(fa)(f)
