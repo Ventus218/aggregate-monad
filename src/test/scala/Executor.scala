@@ -1,11 +1,9 @@
 package aggregate
 
-import AggregateAPI.{*}
-import AggregateEngineModule.{*, given}
-import NValues.*
-
-import scala.reflect.ClassTag
 import scala.util.Random
+import AggregateAPI.*
+import NValues.*
+import AggregateEngineModule.*
 
 /** Utilities to run rounds, mainly for simulation/testing
   */
