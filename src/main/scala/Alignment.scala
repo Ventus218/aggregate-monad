@@ -7,7 +7,7 @@ import aggregate.ValueTrees.*
 object AlignmentModule:
   opaque type Alignment[+A] = Grammar[A]
   private enum Grammar[+A]:
-    case Xc(ret: Grammar[A], send: Grammar[Any])
+    case Exchange(ret: Grammar[A], send: Grammar[Any])
     case Call(id: String, f: () => Alignment[A])
     case AlignedContext(f: (Env) => Alignment[A])
     case Pure(a: NValue[A])
@@ -21,8 +21,8 @@ object AlignmentModule:
     def call[A](id: String, f: () => Alignment[A]): Alignment[A] =
       Call(id, f)
 
-    def xc[A](ret: Alignment[A], send: Alignment[Any]): Alignment[A] =
-      Xc(ret, send)
+    def exchange[A](ret: Alignment[A], send: Alignment[Any]): Alignment[A] =
+      Exchange(ret, send)
 
     def alignedContext[A](f: (Env) => Alignment[A]): Alignment[A] =
       AlignedContext(f)
@@ -32,9 +32,8 @@ object AlignmentModule:
         // // Less efficient (creates more nodes)
         // fa.flatMap(a => Alignment.pure(f(a)))
         fa match
-          case Call(id, fun) => Call(id, () => fun().map(f))
-          case Xc(ret, send) =>
-            Xc(ret.map(f), send) // TODO: check if not mapping send is correct
+          case Call(id, fun)       => Call(id, () => fun().map(f))
+          case Exchange(ret, send) => Exchange(ret.map(f), send)
           case AlignedContext(fun) => AlignedContext(env => fun(env).map(f))
           case Pure(a)             => Pure(f(a))
           case FlatMap(fa, fun)    => FlatMap(fa, a => fun(a).map(f))
@@ -50,7 +49,7 @@ object AlignmentModule:
             alignment.run(env)
           case Pure(a) =>
             ValueTree.NVal(a)
-          case Xc(ret, send) =>
+          case Exchange(ret, send) =>
             val retTree = ret.run(env.enterChildN(0))
             val sendTree = send.run(env.enterChildN(1))
             ValueTree.Exchange(retTree, sendTree)
