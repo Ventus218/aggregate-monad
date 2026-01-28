@@ -81,8 +81,7 @@ object Executor:
       val toAdd =
         if default == null then Map()
         else Map.from(topology.keys.map(_ -> NValue(default)))
-      var newValues = (toAdd ++ values.map((k, v) => (k, NValue(v))))
-        .asInstanceOf[Map[Device, NValue[Any]]]
+      var newValues = (toAdd ++ values.map((k, v) => (k, v)))
       this.copy(ssns = ssns + (name -> newValues))
 
     def withNeighbourhood(mapping: (Device, Domain)): Platform =
