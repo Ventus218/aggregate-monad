@@ -130,5 +130,9 @@ object AggregateImpl:
         case Call(f) =>
           for
             f <- f.toAlignment
-            call <- Alignment.call(() => f.selfValue().toAlignment)
+            lambda = f.selfValue
+            call <- Alignment.call(
+              lambda.toString(),
+              () => lambda().toAlignment
+            )
           yield call
