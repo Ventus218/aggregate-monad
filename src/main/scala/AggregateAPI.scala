@@ -25,7 +25,6 @@ trait AggregateAPI:
   def uid: Aggregate[Device]
 
   extension [A](fa: Aggregate[A])
-    def self: Aggregate[A]
     def update(d: Aggregate[Device], f: A => A): Aggregate[A]
     def run(using Env, Input): ValueTree[A]
 
@@ -57,8 +56,6 @@ object AggregateAPI extends AggregateAPI:
   def uid: Aggregate[Device] = impl.uid
 
   extension [A](fa: Aggregate[A])
-    def self: Aggregate[A] = impl.self(fa)
-
     def update(d: Aggregate[Device], f: A => A): Aggregate[A] =
       impl.update(fa)(d, f)
 

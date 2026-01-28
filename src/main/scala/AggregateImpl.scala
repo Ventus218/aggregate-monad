@@ -17,7 +17,6 @@ object AggregateImpl:
     case Call(f: Aggregate[() => Aggregate[A]])
     case Sensor(name: Aggregate[String])
     case Uid extends Aggregate[Device]
-    case Self(a: Aggregate[A])
     case OverrideDevice[A](fa: Aggregate[A], d: Aggregate[Device], f: A => A)
         extends Aggregate[A]
     case Pure(nvalues: NValue[A])
@@ -43,7 +42,6 @@ object AggregateImpl:
   def uid: Aggregate[Device] = Uid
 
   extension [A](fa: Aggregate[A])
-    def self: Aggregate[A] = Self(fa)
     def update(d: Aggregate[Device], f: A => A): Aggregate[A] =
       OverrideDevice(fa, d, f)
 
@@ -74,10 +72,6 @@ object AggregateImpl:
         case Pure(nvalues) => Alignment.pure(nvalues)
 
         case Uid => Alignment.pure(NValue(input.uid))
-
-        case Self(a) =>
-          for a <- a.toAlignment
-          yield NValue(a.selfValue)
 
         case OverrideDevice(a, d, f) =>
           for

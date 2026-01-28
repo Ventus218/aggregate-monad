@@ -37,6 +37,7 @@ class BasicAggregateTest extends org.scalatest.funsuite.AnyFunSuite:
     ag.repeat().take(4).map(_.top.asValue) shouldBe List(5, 5, 5, 5)
 
   test("self on nvalue"):
+    import AggregateLib.self
     val nv: NValue[Int] = NValue(5, Map(newDevice() -> 4))
     val ag: Aggregate[Int] = nv.self
     ag.repeat().take(4).map(_.top.asValue) shouldBe List(5, 5, 5, 5)
