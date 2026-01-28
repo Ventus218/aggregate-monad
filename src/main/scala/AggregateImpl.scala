@@ -15,7 +15,7 @@ object AggregateImpl:
     case NFold[A, B](init: Aggregate[A], a: Aggregate[B], f: (A, B) => A)
         extends Aggregate[A]
     case Call(f: Aggregate[() => Aggregate[A]])
-    case Sensor(name: Aggregate[String])
+    case Sensor(s: () => Aggregate[A])
     case Uid extends Aggregate[Device]
     case OverrideDevice[A](fa: Aggregate[A], d: Aggregate[Device], f: A => A)
         extends Aggregate[A]
@@ -25,8 +25,8 @@ object AggregateImpl:
 
   import Grammar.*
 
-  def sensor[A](name: Aggregate[String]): Aggregate[A] =
-    Sensor(name)
+  def sensor[A](s: => Aggregate[A]): Aggregate[A] =
+    Sensor(() => s)
 
   def call[A](f: Aggregate[() => Aggregate[A]]): Aggregate[A] =
     Call(f)
@@ -67,7 +67,6 @@ object AggregateImpl:
 
     private def toAlignment(using input: Input): Alignment[A] =
       val uid = input.uid
-      val sensors = input.sensors
       a match
         case Pure(nvalues) => Alignment.pure(nvalues)
 
@@ -79,11 +78,7 @@ object AggregateImpl:
             d <- d.toAlignment
           yield a.setWith(d.selfValue, f)
 
-        case Sensor(name) =>
-          for
-            name <- name.toAlignment
-            sensorNValue = input.sensors(name.selfValue).asInstanceOf[NValue[A]]
-          yield sensorNValue
+        case Sensor(name) => name().toAlignment
 
         case FlatMap(a, f) =>
           a.toAlignment.flatMap(a => f(a).toAlignment)

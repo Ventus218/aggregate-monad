@@ -7,7 +7,7 @@ import scala.language.implicitConversions
 import Executor.{*, given}
 import AggregateEngineModule.{*, given}
 import NValues.*
-// import aggregate.Executor.DistributedSystem.platformSensor
+import aggregate.Executor.DistributedSystem.platformSensor
 
 class BasicAggregateTest extends org.scalatest.funsuite.AnyFunSuite:
   extension [A](nv: NValue[A]) def asValue: A = nv(selfDevice)
@@ -156,24 +156,24 @@ class BasicAggregateTest extends org.scalatest.funsuite.AnyFunSuite:
     ds.fire(d3).top shouldBe NValue(1, Map(d1 -> 2, d2 -> 2, d3 -> 2))
     ds.fire(d1).top shouldBe NValue(1, Map(d1 -> 4, d2 -> 5, d3 -> 3))
 
-  // test("Branching ping-pong with a sensor"):
-  //   import AggregateLib.{branch, retsend}
-  //   var cond = false
-  //   val agf = branch(sensor(cond))(0)(retsend(0)(for i <- _ yield i + 1))
-  //   val (d1, d2) = (newDevice(), newDevice())
-  //   val ds = Platform()
-  //     .withNeighbourhood(d1 -> Set(d1, d2))
-  //     .withNeighbourhood(d2 -> Set(d1, d2))
-  //     .asDistributedSystem(agf)
-  //   ds.fire(d1).top.asValue shouldBe 1
-  //   ds.fire(d2).top shouldBe NValue(1, Map(d1 -> 2))
-  //   ds.fire(d2).top shouldBe NValue(1, Map(d1 -> 2, d2 -> 2))
-  //   cond = true // sensor change
-  //   ds.fire(d2).top.asValue shouldBe 0
-  //   cond = false // sensor change
-  //   ds.fire(d1).top shouldBe NValue(1, Map(d1 -> 2))
-  //   ds.fire(d2).top shouldBe NValue(1, Map(d1 -> 2))
-  //   ds.fire(d2).top shouldBe NValue(1, Map(d1 -> 2, d2 -> 2))
+  test("Branching ping-pong with a sensor"):
+    import AggregateLib.{branch, retsend, +}
+    var cond = false
+    val agf = branch(sensor(cond))(0)(exchange(0)(n => retsend(n + 1)))
+    val (d1, d2) = (newDevice(), newDevice())
+    val ds = Platform()
+      .withNeighbourhood(d1 -> Set(d1, d2))
+      .withNeighbourhood(d2 -> Set(d1, d2))
+      .asDistributedSystem(agf)
+    ds.fire(d1).top.asValue shouldBe 1
+    ds.fire(d2).top shouldBe NValue(1, Map(d1 -> 2))
+    ds.fire(d2).top shouldBe NValue(1, Map(d1 -> 2, d2 -> 2))
+    cond = true // sensor change
+    ds.fire(d2).top.asValue shouldBe 0
+    cond = false // sensor change
+    ds.fire(d1).top shouldBe NValue(1, Map(d1 -> 2))
+    ds.fire(d2).top shouldBe NValue(1, Map(d1 -> 2))
+    ds.fire(d2).top shouldBe NValue(1, Map(d1 -> 2, d2 -> 2))
 
   test("Folding a ping-pong"):
     import AggregateLib.retsend
@@ -228,87 +228,92 @@ class BasicAggregateTest extends org.scalatest.funsuite.AnyFunSuite:
   //     d4 -> 3
   //   ).foreach: (device, result) =>
   //     ds.fire(device).top.asValue shouldBe result
-  //
-  // test("mid"):
-  //   val ds = platform3
-  //     .withSensor("mid", Map(d1 -> 1, d2 -> 2, d3 -> 3))
-  //     .asDistributedSystem[Int]:
-  //       platformSensor("mid")
-  //   ds.fires(d1, d2, d2, d1, d2, d3).map(_.top.asValue) shouldBe List(1, 2, 2,
-  //     1, 2, 3)
-  //
-  // test("gatherMids"):
-  //   import lib.AggregateLib.*
-  //   val ds = platform3
-  //     .withSensor("mid", Map(d1 -> 1, d2 -> 2, d3 -> 3))
-  //     .asDistributedSystem[Set[Int]]:
-  //       def mid: Aggregate[Int] = platformSensor("mid")
-  //       for
-  //         m <- mid
-  //         v <- nbr(mid)
-  //       yield nfold(Set(m.selfValue))(_ ++ _)(v.map(Set(_)))
-  //   ds.fires(d1, d2, d3, d1).map(_.top.asValue) shouldBe List(
-  //     Set(1),
-  //     Set(1, 2),
-  //     Set(1, 2, 3),
-  //     Set(1, 2, 3)
-  //   )
-  //
-  // test("gossipIds"):
-  //   import lib.AggregateLib.*
-  //   val ds = platformAdHoc
-  //     .withSensor("mid", Map(d1 -> 1, d2 -> 2, d3 -> 3, d4 -> 4))
-  //     .asDistributedSystem[Set[Int]]:
-  //       def mid: Aggregate[Int] = platformSensor("mid")
-  //       def gossipEver[A](
-  //           init: A
-  //       )(op: (A, A) => A)(a: Aggregate[A]): Aggregate[A] =
-  //         for
-  //           nva <- a
-  //           g <- retsend[A](init)(v =>
-  //             nfold(op(v.selfValue, nva.selfValue))(op)(v)
-  //           )
-  //         yield g
-  //       gossipEver[Set[Int]](Set())(_ ++ _)(mid.map(_.map(Set(_))))
-  //   ds.fires(d1, d2, d3, d1, d2, d1, d4, d3, d2, d1).map(_.top.asValue) shouldBe
-  //     List(
-  //       Set(1),
-  //       Set(1, 2),
-  //       Set(1, 2, 3),
-  //       Set(1, 2),
-  //       Set(1, 2, 3),
-  //       Set(1, 2, 3),
-  //       Set(1, 2, 3, 4),
-  //       Set(1, 2, 3, 4),
-  //       Set(1, 2, 3, 4),
-  //       Set(1, 2, 3, 4)
-  //     )
-  //
-  // test("gossipMinId"):
-  //   import lib.AggregateLib.*
-  //   val ds = platformAdHoc
-  //     .withSensor("mid", Map(d1 -> 1, d2 -> 2, d3 -> 3, d4 -> 4))
-  //     .asDistributedSystem:
-  //       def mid: Aggregate[Int] = platformSensor("mid")
-  //       def gossipEver[A](
-  //           init: A
-  //       )(op: (A, A) => A)(a: Aggregate[A]): Aggregate[A] =
-  //         for
-  //           nva <- a
-  //           g <- retsend[A](init)(v =>
-  //             nfold(op(v.selfValue, nva.selfValue))(op)(v)
-  //           )
-  //         yield g
-  //       gossipEver[Int](Int.MaxValue)(_ min _)(mid)
-  //
-  //   Seq(
-  //     d4 -> 4,
-  //     d2 -> 2,
-  //     d3 -> 2,
-  //     d1 -> 1,
-  //     d4 -> 2,
-  //     d2 -> 1,
-  //     d3 -> 1,
-  //     d4 -> 1
-  //   ).foreach: (device, result) =>
-  //     ds.fire(device).top.asValue shouldBe result
+
+  test("mid"):
+    val ds = platform3
+      .withSensor("mid", Map(d1 -> 1, d2 -> 2, d3 -> 3))
+      .asDistributedSystem[Int]:
+        platformSensor("mid")
+    ds.fires(d1, d2, d2, d1, d2, d3).map(_.top.asValue) shouldBe List(1, 2, 2,
+      1, 2, 3)
+
+  test("gatherMids"):
+    import AggregateLib.*
+    import AggregateAPI.nvalGiven
+    val ds = platform3
+      .withSensor("mid", Map(d1 -> 1, d2 -> 2, d3 -> 3))
+      .asDistributedSystem[Set[Int]]:
+        def mid: Aggregate[Int] = platformSensor("mid")
+        for
+          v <- nbr(mid)
+          res <- nfold(mid.self.map(_.map(Set(_))))(v.map(Set(_)))(_ ++ _)
+        yield res
+    ds.fires(d1, d2, d3, d1).map(_.top.asValue) shouldBe List(
+      Set(1),
+      Set(1, 2),
+      Set(1, 2, 3),
+      Set(1, 2, 3)
+    )
+
+  test("gossipIds"):
+    import AggregateLib.*
+    import AggregateAPI.nvalGiven
+    val ds = platformAdHoc
+      .withSensor("mid", Map(d1 -> 1, d2 -> 2, d3 -> 3, d4 -> 4))
+      .asDistributedSystem[Set[Int]]:
+        def mid: Aggregate[Int] = platformSensor("mid")
+        def gossipEver[A](
+            init: A
+        )(op: (A, A) => A)(a: Aggregate[A]): Aggregate[A] =
+          for
+            a <- a
+            res <- exchange(init)(v =>
+              retsend:
+                nfold(init = pointwise(v, a, op))(v)(op)
+            )
+          yield res
+        gossipEver[Set[Int]](Set())(_ ++ _)(mid.map(_.map(Set(_))))
+    ds.fires(d1, d2, d3, d1, d2, d1, d4, d3, d2, d1).map(_.top.asValue) shouldBe
+      List(
+        Set(1),
+        Set(1, 2),
+        Set(1, 2, 3),
+        Set(1, 2),
+        Set(1, 2, 3),
+        Set(1, 2, 3),
+        Set(1, 2, 3, 4),
+        Set(1, 2, 3, 4),
+        Set(1, 2, 3, 4),
+        Set(1, 2, 3, 4)
+      )
+
+  test("gossipMinId"):
+    import AggregateLib.*
+    import AggregateAPI.nvalGiven
+    val ds = platformAdHoc
+      .withSensor("mid", Map(d1 -> 1, d2 -> 2, d3 -> 3, d4 -> 4))
+      .asDistributedSystem:
+        def mid: Aggregate[Int] = platformSensor("mid")
+        def gossipEver[A](
+            init: A
+        )(op: (A, A) => A)(a: Aggregate[A]): Aggregate[A] =
+          for
+            a <- a
+            res <- exchange(init)(v =>
+              retsend:
+                nfold(init = pointwise(v, a, op))(v)(op)
+            )
+          yield res
+        gossipEver[Int](Int.MaxValue)(_ min _)(mid)
+
+    Seq(
+      d4 -> 4,
+      d2 -> 2,
+      d3 -> 2,
+      d1 -> 1,
+      d4 -> 2,
+      d2 -> 1,
+      d3 -> 1,
+      d4 -> 1
+    ).foreach: (device, result) =>
+      ds.fire(device).top.asValue shouldBe result
