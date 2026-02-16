@@ -41,33 +41,29 @@ object AlignmentModule:
       def flatMap[B](f: NValue[A] => Alignment[B]): Alignment[B] =
         FlatMap(fa, f)
 
-      def run(unsafeEnv: Env): ValueTree[A] =
-        val env: Env = unsafeEnv.alignWith(fa)
+      def run(env: Env): ValueTree[A] =
         fa match
-          case AlignedContext(f) =>
-            val alignment = f(env)
-            alignment.run(env)
-          case Pure(a) =>
-            ValueTree.NVal(a)
+          case AlignedContext(f) => f(env).run(env)
+          case Pure(a)           => ValueTree.NVal(a)
           case Exchange(ret, send) =>
-            val retTree = ret.run(env.enterChildN(0))
-            val sendTree = send.run(env.enterChildN(1))
+            val retTree = ret.run(env.enter[ValueTree.Exchange[?, ?]](_.ret))
+            val sendTree = send.run(env.enter[ValueTree.Exchange[?, ?]](_.send))
             ValueTree.Exchange(retTree, sendTree)
           case Call(id, f) =>
-            val runA = f().run(env.enterChildN(0))
+            val alignedEnv = env.collect({
+              case (d, t @ ValueTree.Call(id1, _)) if id == id1 => (d, t)
+            })
+            val runA = f().run(alignedEnv.enter[ValueTree.Call[?]](_.f))
             ValueTree.Call(id, runA)
           case FlatMap(fa, f) =>
-            val left = fa.run(env.enterChildN(0))
-            val right = f(left.nv).run(env.enterChildN(1))
-            ValueTree.Sequence(left, right)
+            val before = fa.run(env.enter[ValueTree.Sequence[?]](_.before))
+            val after =
+              f(before.nv).run(env.enter[ValueTree.Sequence[?]](_.after))
+            ValueTree.Sequence(before, after)
 
+    import scala.reflect.ClassTag
     extension (env: Env)
-      private def alignWith[A](a: Alignment[A]): Env =
-        env.filter((_, t) =>
-          (t, a) match
-            case (ValueTree.Call(id1, _), Grammar.Call(id2, _)) =>
-              id1 == id2
-            case _ => true
-        )
-      private def enterChildN(n: Int): Env =
-        env.view.mapValues(_.children(n)).toMap
+      private def enter[T <: ValueTree[?]: ClassTag](
+          f: T => ValueTree[Any]
+      ): Env =
+        env.collect({ case (d, t: T) => (d, f(t)) })
