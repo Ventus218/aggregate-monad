@@ -21,7 +21,6 @@ trait AggregateAPI:
   def uid: Aggregate[Device]
 
   extension [A](fa: Aggregate[A])
-    def update(d: Aggregate[Device], f: A => A): Aggregate[A]
     def run(using uid: Device)(using Env): ValueTree[A]
 
   def pure[A](a: A): Aggregate[A]
@@ -55,9 +54,6 @@ object AggregateAPI extends AggregateAPI:
   def uid: Aggregate[Device] = impl.uid
 
   extension [A](fa: Aggregate[A])
-    def update(d: Aggregate[Device], f: A => A): Aggregate[A] =
-      impl.update(fa)(d, f)
-
     def run(using uid: Device)(using Env): ValueTree[A] = impl.run(fa)
 
     def map[B](f: NValue[A] => NValue[B]): Aggregate[B] =
