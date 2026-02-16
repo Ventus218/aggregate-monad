@@ -61,13 +61,6 @@ object AggregateImpl:
   def uid: Aggregate[Device] = id => Alignment.pure(NValue(id))
 
   extension [A](fa: Aggregate[A])
-    def update(d: Aggregate[Device], f: A => A): Aggregate[A] = id =>
-      for
-        fa <- fa(id)
-        d <- d(id)
-      yield fa.setWith(d(id), f)
-
-  extension [A](fa: Aggregate[A])
     def map[B](f: NValue[A] => NValue[B]): Aggregate[B] =
       fa.flatMap(a => pure(f(a)))
 

@@ -36,6 +36,24 @@ class SimpleTest extends org.scalatest.funsuite.AnyFunSuite:
     vt.nv(d3) shouldBe 1
     vt.nv(d4) shouldBe 1
 
+  test("update value for device"):
+    val a: Aggregate[Int] = NValue(0, d1 -> 1, d2 -> 2, d3 -> 3)
+    val program = a.update(d2, _ => 0)
+    val vt = program.run(using uid = d1)(using Env())
+    vt.nv(d1) shouldBe 1
+    vt.nv(d2) shouldBe 0
+    vt.nv(d3) shouldBe 3
+    vt.nv(d4) shouldBe 0
+
+  test("update value for device - 2"):
+    val a: Aggregate[Int] = NValue(0, d1 -> 1, d2 -> 2, d3 -> 3)
+    val program = a.update(d2, _ + 2)
+    val vt = program.run(using uid = d1)(using Env())
+    vt.nv(d1) shouldBe 1
+    vt.nv(d2) shouldBe 4
+    vt.nv(d3) shouldBe 3
+    vt.nv(d4) shouldBe 0
+
   test("mux"):
     val cond = NValue(true, Map(d1 -> true, d2 -> false))
     val program = mux(cond)(1)(0)
@@ -44,7 +62,7 @@ class SimpleTest extends org.scalatest.funsuite.AnyFunSuite:
     program.run(using uid = d1)(using env).nv shouldBe NValue(1)
     program.run(using uid = d2)(using env).nv shouldBe NValue(0)
 
-  test("mux2"):
+  test("mux - 2"):
     val cond = NValue(true, Map(d1 -> true, d2 -> false))
     val trueNVal = NValue(1, Map(d1 -> 9))
     val program = mux(cond)(pure(trueNVal))(0)

@@ -53,6 +53,16 @@ object AggregateLib:
     (a, a)
 
   extension [A](a: Aggregate[A])
+    def update(d: Aggregate[Device], f: A => A): Aggregate[A] =
+      for
+        aNV <- a
+        dNV <- d
+        res =
+          for
+            dV <- dNV
+            res <- aNV.setWith(dV, f)
+          yield res
+      yield res
     def updateSelf(f: A => A): Aggregate[A] =
       a.update(uid, f)
     def updateSelf(b: A): Aggregate[A] =
