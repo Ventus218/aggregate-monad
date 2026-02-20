@@ -24,6 +24,6 @@ trait AggregateEngine extends AggregateEngineAPI:
   def selfDevice: Device = Device.fromInt(0)
 
   def round[A](a: Aggregate[A])(d: Device)(e: Env): Export[A] =
-    a.run(using d)(using e)
+    a.run(d)(e)
 
 object AggregateEngineModule extends AggregateEngine

@@ -30,7 +30,7 @@ class SimpleTest extends org.scalatest.funsuite.AnyFunSuite:
 
   test("pure nvalue"):
     val program: Aggregate[Int] = 1
-    val vt = program.run(using uid = d1)(using Env())
+    val vt = program.run(uid = d1)(Env())
     vt.nv(d1) shouldBe 1
     vt.nv(d2) shouldBe 1
     vt.nv(d3) shouldBe 1
@@ -39,7 +39,7 @@ class SimpleTest extends org.scalatest.funsuite.AnyFunSuite:
   test("update value for device"):
     val a: Aggregate[Int] = NValue(0, d1 -> 1, d2 -> 2, d3 -> 3)
     val program = a.update(d2, _ => 0)
-    val vt = program.run(using uid = d1)(using Env())
+    val vt = program.run(uid = d1)(Env())
     vt.nv(d1) shouldBe 1
     vt.nv(d2) shouldBe 0
     vt.nv(d3) shouldBe 3
@@ -48,7 +48,7 @@ class SimpleTest extends org.scalatest.funsuite.AnyFunSuite:
   test("update value for device - 2"):
     val a: Aggregate[Int] = NValue(0, d1 -> 1, d2 -> 2, d3 -> 3)
     val program = a.update(d2, _ + 2)
-    val vt = program.run(using uid = d1)(using Env())
+    val vt = program.run(uid = d1)(Env())
     vt.nv(d1) shouldBe 1
     vt.nv(d2) shouldBe 4
     vt.nv(d3) shouldBe 3
@@ -59,8 +59,8 @@ class SimpleTest extends org.scalatest.funsuite.AnyFunSuite:
     val program = mux(cond)(1)(0)
     val env = Env()
 
-    program.run(using uid = d1)(using env).nv shouldBe NValue(1)
-    program.run(using uid = d2)(using env).nv shouldBe NValue(0)
+    program.run(uid = d1)(env).nv shouldBe NValue(1)
+    program.run(uid = d2)(env).nv shouldBe NValue(0)
 
   test("mux - 2"):
     val cond = NValue(true, Map(d1 -> true, d2 -> false))
@@ -68,39 +68,39 @@ class SimpleTest extends org.scalatest.funsuite.AnyFunSuite:
     val program = mux(cond)(pure(trueNVal))(0)
     val env = Env()
 
-    program.run(using uid = d1)(using env).nv shouldBe trueNVal
-    program.run(using uid = d2)(using env).nv shouldBe NValue(0)
+    program.run(uid = d1)(env).nv shouldBe trueNVal
+    program.run(uid = d2)(env).nv shouldBe NValue(0)
 
   test("alignment"):
     val program = nfold(0)(1)(_ + _) // Count neighbours
 
     // We'll use this vt for creating fake envs
-    val vt = program.run(using uid = d1)(using Env())
+    val vt = program.run(uid = d1)(Env())
 
     val zeroNeighboursEnv = Env()
     val oneNeighbourEnv = Env((d2 -> vt))
     val twoNeighboursEnv = Env(d2 -> vt, d3 -> vt)
     val threeNeighboursEnv = Env(d2 -> vt, d3 -> vt, d4 -> vt)
-    program.run(using uid = d1)(using zeroNeighboursEnv).nv(d1) shouldBe 0
-    program.run(using uid = d1)(using oneNeighbourEnv).nv(d1) shouldBe 1
-    program.run(using uid = d1)(using twoNeighboursEnv).nv(d1) shouldBe 2
-    program.run(using uid = d1)(using threeNeighboursEnv).nv(d1) shouldBe 3
+    program.run(uid = d1)(zeroNeighboursEnv).nv(d1) shouldBe 0
+    program.run(uid = d1)(oneNeighbourEnv).nv(d1) shouldBe 1
+    program.run(uid = d1)(twoNeighboursEnv).nv(d1) shouldBe 2
+    program.run(uid = d1)(threeNeighboursEnv).nv(d1) shouldBe 3
 
   test("exchange"):
     val program = exchange(0)(n => retsend(n + 1))
 
-    val d1vt0 = program.run(using uid = d1)(using Env())
+    val d1vt0 = program.run(uid = d1)(Env())
 
     d1vt0.nv(d1) shouldBe 1
     d1vt0.nv(d2) shouldBe 1
 
-    val d2vt0 = program.run(using uid = d2)(using Env(d1 -> d1vt0))
+    val d2vt0 = program.run(uid = d2)(Env(d1 -> d1vt0))
 
     d2vt0.nv(d1) shouldBe 2
     d2vt0.nv(d2) shouldBe 1
 
     val d1vt1 =
-      program.run(using uid = d1)(using Env(d1 -> d1vt0, d2 -> d2vt0))
+      program.run(uid = d1)(Env(d1 -> d1vt0, d2 -> d2vt0))
 
     d1vt1.nv(d1) shouldBe 2
     d1vt1.nv(d2) shouldBe 3
@@ -109,21 +109,21 @@ class SimpleTest extends org.scalatest.funsuite.AnyFunSuite:
     def countAlignedNeighbours: Aggregate[Int] =
       nfold(init = 0)(1)(_ + _)
 
-    val d1vt0 = countAlignedNeighbours.run(using uid = d1)(using Env())
-    val d2vt0 = countAlignedNeighbours.run(using uid = d2)(using Env())
-    val d3vt0 = countAlignedNeighbours.run(using uid = d3)(using Env())
+    val d1vt0 = countAlignedNeighbours.run(uid = d1)(Env())
+    val d2vt0 = countAlignedNeighbours.run(uid = d2)(Env())
+    val d3vt0 = countAlignedNeighbours.run(uid = d3)(Env())
 
     d1vt0.nv(d1) shouldBe 0
     d2vt0.nv(d2) shouldBe 0
     d3vt0.nv(d3) shouldBe 0
 
-    val d1vt1 = countAlignedNeighbours.run(using uid = d1)(using
+    val d1vt1 = countAlignedNeighbours.run(uid = d1)(
       Env(d1 -> d1vt0, d2 -> d2vt0, d3 -> d3vt0)
     )
-    val d2vt1 = countAlignedNeighbours.run(using uid = d2)(using
+    val d2vt1 = countAlignedNeighbours.run(uid = d2)(
       Env(d1 -> d1vt0, d2 -> d2vt0, (d3 -> d3vt0))
     )
-    val d3vt1 = countAlignedNeighbours.run(using uid = d3)(using
+    val d3vt1 = countAlignedNeighbours.run(uid = d3)(
       Env(d1 -> d1vt0, d3 -> d3vt0)
     )
 
@@ -135,12 +135,12 @@ class SimpleTest extends org.scalatest.funsuite.AnyFunSuite:
     def sens = NValue(false, Map(d1 -> true, d2 -> false))
     val program = branch(sens)(0)(1)
 
-    val d1vt0 = program.run(using uid = d1)(using Env())
-    val d2vt0 = program.run(using uid = d2)(using Env())
+    val d1vt0 = program.run(uid = d1)(Env())
+    val d2vt0 = program.run(uid = d2)(Env())
 
     val env = Env(d1 -> d1vt0, d2 -> d2vt0)
-    val d1vt1 = program.run(using uid = d1)(using env)
-    val d2vt1 = program.run(using uid = d2)(using env)
+    val d1vt1 = program.run(uid = d1)(env)
+    val d2vt1 = program.run(uid = d2)(env)
 
     d1vt1.nv(d1) shouldBe 0
     d2vt1.nv(d2) shouldBe 1
@@ -152,13 +152,13 @@ class SimpleTest extends org.scalatest.funsuite.AnyFunSuite:
 
     val program1 = branch(sens)(countAlignedChild)(countAlignedChild)
 
-    val p1d1vt0 = program1.run(using uid = d1)(using Env())
-    val p1d2vt0 = program1.run(using uid = d2)(using Env())
+    val p1d1vt0 = program1.run(uid = d1)(Env())
+    val p1d2vt0 = program1.run(uid = d2)(Env())
 
     val env1 = Env(d1 -> p1d1vt0, d2 -> p1d2vt0)
 
-    val p1d1vt1 = program1.run(using uid = d1)(using env1)
-    val p1d2vt1 = program1.run(using uid = d2)(using env1)
+    val p1d1vt1 = program1.run(uid = d1)(env1)
+    val p1d2vt1 = program1.run(uid = d2)(env1)
 
     p1d1vt1.nv(d1) shouldBe 0
     p1d2vt1.nv(d2) shouldBe 0
@@ -168,13 +168,13 @@ class SimpleTest extends org.scalatest.funsuite.AnyFunSuite:
       res <- branch(sens)(pure(count))(count)
     yield res
 
-    val p2d1vt0 = program2.run(using uid = d1)(using Env())
-    val p2d2vt0 = program2.run(using uid = d2)(using Env())
+    val p2d1vt0 = program2.run(uid = d1)(Env())
+    val p2d2vt0 = program2.run(uid = d2)(Env())
 
     val env2 = Env(d1 -> p2d1vt0, d2 -> p2d2vt0)
 
-    val p2d1vt1 = program2.run(using uid = d1)(using env2)
-    val p2d2vt1 = program2.run(using uid = d2)(using env2)
+    val p2d1vt1 = program2.run(uid = d1)(env2)
+    val p2d2vt1 = program2.run(uid = d2)(env2)
 
     p2d1vt1.nv(d1) shouldBe 1
     p2d2vt1.nv(d2) shouldBe 1

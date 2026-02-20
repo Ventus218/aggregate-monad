@@ -71,5 +71,5 @@ object AggregateImpl:
   def pure[A](a: NValue[A]): Aggregate[A] = _ => Alignment.pure(a)
 
   extension [A](a: Aggregate[A])
-    def run(using uid: Device)(using env: Env): ValueTree[A] =
+    def run(uid: Device)(env: Env): ValueTree[A] =
       a(uid).run(env)
