@@ -12,26 +12,28 @@ def distanceEstimate(n: Aggregate[Float]): Aggregate[Float] =
   nfold(Float.PositiveInfinity)(n + senseDist)(math.min)
 
 def gradient(src: Aggregate[Boolean]): Aggregate[Float] =
-  exchange(Float.PositiveInfinity)(n =>
+  exchange(Float.PositiveInfinity): n =>
     retsend(mux(src)(0f)(distanceEstimate(n)))
-  )
 
 def average(
     weight: Aggregate[Float],
     value: Aggregate[Float]
 ): Aggregate[Float] =
-  val totW = nfold(weight)(nbr(0f, weight))(_ + _)
-  val totVl = nfold(weight * value)(nbr(0f, weight * value))(_ + _)
-  totVl / totW
+  for
+    totW <- nfold(weight)(nbr(0f, weight))(_ + _)
+    totVl <- nfold(weight * value)(nbr(0f, weight * value))(_ + _)
+  yield totVl / totW
 
 def closestFire(
     temperature: Aggregate[Float],
     smoke: Aggregate[Float]
 ): Aggregate[Float] =
-  val trust = nfold(1f)(1)(_ + _) // number of neighbours + self
-  val hot = average(trust, temperature) > 60f
-  val cloudy = average(trust, smoke) > 10f
-  gradient(hot & cloudy)
+  for
+    trust <- nfold(1f)(1)(_ + _) // number of neighbours + self
+    hot <- average(trust, temperature) > 60f
+    cloudy <- average(trust, smoke) > 10f
+    gradient <- gradient(hot & cloudy)
+  yield gradient
 
 def distanceToGateways(
     local: Aggregate[Boolean],

@@ -40,3 +40,46 @@ object NValues:
           .map(d => (d, f(nv(d))(d)))
           .toMap
       )
+
+  def pointwise[A, B, C](
+      a: NValue[A],
+      b: NValue[B],
+      f: (A, B) => C
+  ): NValue[C] =
+    for
+      a <- a
+      b <- b
+    yield f(a, b)
+
+  // Equals
+  extension [A](a: NValue[A])
+    infix def eq(b: NValue[A]): NValue[Boolean] =
+      pointwise(a, b, _ == _)
+
+  // Logic operators
+  extension (a: NValue[Boolean])
+    infix def &(b: NValue[Boolean]): NValue[Boolean] =
+      pointwise(a, b, _ & _)
+    infix def |(b: NValue[Boolean]): NValue[Boolean] =
+      pointwise(a, b, _ | _)
+
+  // MATH
+  extension [A: Numeric as num](a: NValue[A])
+    infix def +(b: NValue[A]): NValue[A] =
+      pointwise(a, b, num.plus)
+    infix def -(b: NValue[A]): NValue[A] =
+      pointwise(a, b, num.minus)
+    infix def *(b: NValue[A]): NValue[A] =
+      pointwise(a, b, num.times)
+    infix def <(b: NValue[A]): NValue[Boolean] =
+      pointwise(a, b, num.lt)
+    infix def >(b: NValue[A]): NValue[Boolean] =
+      pointwise(a, b, num.gt)
+    infix def <=(b: NValue[A]): NValue[Boolean] =
+      pointwise(a, b, num.lteq)
+    infix def >=(b: NValue[A]): NValue[Boolean] =
+      pointwise(a, b, num.gteq)
+
+  extension [A: Fractional as frac](a: NValue[A])
+    infix def /(b: NValue[A]): NValue[A] =
+      pointwise(a, b, frac.div)

@@ -24,10 +24,7 @@ object AggregateLib:
     for
       a <- a
       b <- b
-    yield (for
-      a <- a
-      b <- b
-    yield f(a, b))
+    yield (NValues.pointwise(a, b, f))
 
   def branch[A](cond: Aggregate[Boolean])(th: => Aggregate[A])(
       el: => Aggregate[A]
@@ -99,9 +96,13 @@ object AggregateLib:
     exchange(Double.PositiveInfinity -> field): dv =>
       retsend:
         mux(src)(0.0 -> field):
-          val dv1PlusRange = dv._1 + range
-          val tuple = dv1PlusRange -> dv._2
-          nfold(Double.PositiveInfinity -> field)(tuple)(_ min _)
+          for
+            dv1PlusRange <- dv._1 + range
+            tuple <- (pure(dv1PlusRange) -> dv._2)
+            result <- nfold(Double.PositiveInfinity -> field)(pure(tuple))(
+              _ min _
+            )
+          yield result
 
   def distanceBetween(src: Aggregate[Boolean], dest: Aggregate[Boolean])(using
       range: Aggregate[Double]
