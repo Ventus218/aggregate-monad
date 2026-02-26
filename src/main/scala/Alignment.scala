@@ -43,8 +43,7 @@ object AlignmentModule:
 
       def run(env: Env): ValueTree[A] =
         fa match
-          case AlignedContext(f) => f(env).run(env)
-          case Pure(a)           => ValueTree.NVal(a)
+          case Pure(a) => ValueTree.NVal(a)
           case Exchange(ret, send) =>
             val retTree = ret.run(env.enter[ValueTree.Exchange[?, ?]](_.ret))
             val sendTree = send.run(env.enter[ValueTree.Exchange[?, ?]](_.send))
@@ -53,13 +52,14 @@ object AlignmentModule:
             val alignedEnv = env.collect({
               case (d, t @ ValueTree.Call(id1, _)) if id == id1 => (d, t)
             })
-            val runA = f().run(alignedEnv.enter[ValueTree.Call[?]](_.f))
-            ValueTree.Call(id, runA)
+            val fTree = f().run(alignedEnv.enter[ValueTree.Call[?]](_.f))
+            ValueTree.Call(id, fTree)
+          case AlignedContext(f) => f(env).run(env)
           case FlatMap(fa, f) =>
-            val before = fa.run(env.enter[ValueTree.Sequence[?]](_.before))
-            val after =
-              f(before.nv).run(env.enter[ValueTree.Sequence[?]](_.after))
-            ValueTree.Sequence(before, after)
+            val beforeTree = fa.run(env.enter[ValueTree.Sequence[?]](_.before))
+            val afterTree =
+              f(beforeTree.nv).run(env.enter[ValueTree.Sequence[?]](_.after))
+            ValueTree.Sequence(beforeTree, afterTree)
 
     import scala.reflect.ClassTag
     extension (env: Env)
