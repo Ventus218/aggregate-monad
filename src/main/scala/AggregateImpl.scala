@@ -29,15 +29,14 @@ object AggregateImpl:
       defaultValue = defaultNV(id)
       result <- Alignment.alignedEnv(env =>
         val overrides =
-          env.map((d, tree) =>
-            (
-              d,
+          env.view
+            .mapValues(tree =>
               tree
                 .asInstanceOf[ValueTree.Exchange[A, defaultValue.type]]
                 .send
                 .nv(id)
             )
-          )
+            .toMap
         val nbrMessages = NValue(defaultValue, overrides)
         val (ret, send) = f(pure(nbrMessages))
         Alignment.exchange(ret = ret(id), send = send(id))
