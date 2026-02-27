@@ -15,11 +15,11 @@ object AggregateImpl:
     for
       fNV <- f(id)
       lambda = fNV(id)
-      call <- Alignment.call(
+      result <- Alignment.call(
         id = lambda.toString(),
         f = () => lambda()(id)
       )
-    yield call
+    yield result
 
   def exchange[A, S](default: Aggregate[S])(
       f: Aggregate[S] => (Aggregate[A], Aggregate[S])
@@ -27,7 +27,7 @@ object AggregateImpl:
     for
       defaultNV <- default(id)
       defaultValue = defaultNV(id)
-      ret <- Alignment.alignedEnv(env =>
+      result <- Alignment.alignedEnv(env =>
         val overrides =
           env.map((d, tree) =>
             (
@@ -42,21 +42,20 @@ object AggregateImpl:
         val (ret, send) = f(pure(nbrMessages))
         Alignment.exchange(ret = ret(id), send = send(id))
       )
-    yield ret
+    yield result
 
   def nfold[A, B](init: Aggregate[A])(a: Aggregate[B])(
       f: (A, B) => A
   ): Aggregate[A] = id =>
     for
-      init <- init(id)
+      initNV <- init(id)
       aNV <- a(id)
-      res <- Alignment.alignedEnv(env =>
+      result <- Alignment.alignedEnv(env =>
         val neighbours = env.keySet - id
-        val folded =
-          neighbours.foldLeft(init(id))((res, d) => f(res, aNV(d)))
+        val folded = neighbours.foldLeft(initNV(id))((acc, d) => f(acc, aNV(d)))
         Alignment.pure(NValue(folded))
       )
-    yield res
+    yield result
 
   def uid: Aggregate[Device] = id => Alignment.pure(NValue(id))
 
