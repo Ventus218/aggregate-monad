@@ -13,11 +13,11 @@ object AggregateImpl:
 
   def call[A](f: Aggregate[() => Aggregate[A]]): Aggregate[A] = id =>
     for
-      f <- f(id)
-      lambda = f(id)
+      fNV <- f(id)
+      lambda = fNV(id)
       call <- Alignment.call(
-        lambda.toString(),
-        () => lambda()(id)
+        id = lambda.toString(),
+        f = () => lambda()(id)
       )
     yield call
 
@@ -25,11 +25,11 @@ object AggregateImpl:
       f: Aggregate[S] => (Aggregate[A], Aggregate[S])
   ): Aggregate[A] = id =>
     for
-      default <- default(id)
-      defaultValue = default(id)
-      ret <- Alignment.alignedContext(ctx =>
+      defaultNV <- default(id)
+      defaultValue = defaultNV(id)
+      ret <- Alignment.alignedContext(env =>
         val overrides =
-          ctx.toMap.map((d, tree) =>
+          env.map((d, tree) =>
             (
               d,
               tree
@@ -40,7 +40,7 @@ object AggregateImpl:
           )
         val nbrMessages = NValue(defaultValue, overrides)
         val (ret, send) = f(pure(nbrMessages))
-        Alignment.exchange(ret(id), send(id))
+        Alignment.exchange(ret = ret(id), send = send(id))
       )
     yield ret
 
@@ -49,11 +49,11 @@ object AggregateImpl:
   ): Aggregate[A] = id =>
     for
       init <- init(id)
-      a <- a(id)
-      res <- Alignment.alignedContext(ctx =>
-        val neighbours = ctx.toMap.keySet - id
+      aNV <- a(id)
+      res <- Alignment.alignedContext(env =>
+        val neighbours = env.keySet - id
         val folded =
-          neighbours.foldLeft(init(id))((res, d) => f(res, a(d)))
+          neighbours.foldLeft(init(id))((res, d) => f(res, aNV(d)))
         Alignment.pure(NValue(folded))
       )
     yield res
