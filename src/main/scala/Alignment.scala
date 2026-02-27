@@ -9,7 +9,7 @@ object AlignmentModule:
   private enum Grammar[+A]:
     case Exchange(ret: Grammar[A], send: Grammar[Any])
     case Call(id: String, f: () => Alignment[A])
-    case AlignedContext(f: (Env) => Alignment[A])
+    case AlignedEnv(f: (Env) => Alignment[A])
     case Pure(a: NValue[A])
     case FlatMap[A, +B](fa: Grammar[A], f: NValue[A] => Grammar[B])
         extends Grammar[B]
@@ -24,8 +24,8 @@ object AlignmentModule:
     def exchange[A](ret: Alignment[A], send: Alignment[Any]): Alignment[A] =
       Exchange(ret, send)
 
-    def alignedContext[A](f: (Env) => Alignment[A]): Alignment[A] =
-      AlignedContext(f)
+    def alignedEnv[A](f: (Env) => Alignment[A]): Alignment[A] =
+      AlignedEnv(f)
 
     extension [A](fa: Alignment[A])
       def map[B](f: NValue[A] => NValue[B]): Alignment[B] =
@@ -34,7 +34,7 @@ object AlignmentModule:
         fa match
           case Call(id, fun)       => Call(id, () => fun().map(f))
           case Exchange(ret, send) => Exchange(ret.map(f), send)
-          case AlignedContext(fun) => AlignedContext(env => fun(env).map(f))
+          case AlignedEnv(fun)     => AlignedEnv(env => fun(env).map(f))
           case Pure(a)             => Pure(f(a))
           case FlatMap(fa, fun)    => FlatMap(fa, a => fun(a).map(f))
 
@@ -54,7 +54,7 @@ object AlignmentModule:
             })
             val fTree = f().run(alignedEnv.enter[ValueTree.Call[?]](_.f))
             ValueTree.Call(id, fTree)
-          case AlignedContext(f) => f(env).run(env)
+          case AlignedEnv(f) => f(env).run(env)
           case FlatMap(fa, f) =>
             val beforeTree = fa.run(env.enter[ValueTree.Sequence[?]](_.before))
             val afterTree =

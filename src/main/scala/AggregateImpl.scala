@@ -27,7 +27,7 @@ object AggregateImpl:
     for
       defaultNV <- default(id)
       defaultValue = defaultNV(id)
-      ret <- Alignment.alignedContext(env =>
+      ret <- Alignment.alignedEnv(env =>
         val overrides =
           env.map((d, tree) =>
             (
@@ -50,7 +50,7 @@ object AggregateImpl:
     for
       init <- init(id)
       aNV <- a(id)
-      res <- Alignment.alignedContext(env =>
+      res <- Alignment.alignedEnv(env =>
         val neighbours = env.keySet - id
         val folded =
           neighbours.foldLeft(init(id))((res, d) => f(res, aNV(d)))
