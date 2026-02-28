@@ -54,12 +54,7 @@ object AggregateLib:
       for
         aNV <- a
         dNV <- d
-        res =
-          for
-            dV <- dNV
-            res <- aNV.setWith(dV, f)
-          yield res
-      yield res
+      yield dNV.flatMap(dV => aNV.setWith(dV, f))
     def updateSelf(f: A => A): Aggregate[A] =
       a.update(uid, f)
     def updateSelf(b: A): Aggregate[A] =
