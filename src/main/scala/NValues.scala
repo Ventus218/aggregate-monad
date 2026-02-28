@@ -32,13 +32,11 @@ object NValues:
       NValue(f(nv.default), nv.values.view.mapValues(f).toMap)
 
     def flatMap[B](f: A => NValue[B]): NValue[B] =
+      val fd = f(nv.default)
+      val keys = nv.values.keySet ++ fd.values.keySet
       NValue(
-        f(nv.default).default,
-        // TODO: is it okay to just use the keySet of f(nv.default) ??
-        // Or should we merge the keySet of f applied to every value of nv ??
-        (nv.values.keySet ++ f(nv.default).values.keySet)
-          .map(d => (d, f(nv(d))(d)))
-          .toMap
+        fd.default,
+        keys.map(d => (d, f(nv(d))(d))).toMap
       )
 
   def pointwise[A, B, C](
