@@ -28,6 +28,14 @@ class SimpleTest extends org.scalatest.funsuite.AnyFunSuite:
     nvc(d3) shouldBe 6
     nvc(d4) shouldBe 4
 
+  test("add override to NValues"):
+    val nv = NValue(3, Map(d1 -> 3, d2 -> 0)).set(d3, 6)
+
+    nv(d1) shouldBe 3
+    nv(d2) shouldBe 0
+    nv(d3) shouldBe 6
+    nv(d4) shouldBe 3
+
   test("pure nvalue"):
     val program: Aggregate[Int] = 1
     val vt = program.run(uid = d1)(Env())
@@ -51,6 +59,24 @@ class SimpleTest extends org.scalatest.funsuite.AnyFunSuite:
     val vt = program.run(uid = d1)(Env())
     vt.nv(d1) shouldBe 1
     vt.nv(d2) shouldBe 4
+    vt.nv(d3) shouldBe 3
+    vt.nv(d4) shouldBe 0
+
+  test("update self"):
+    val a: Aggregate[Int] = NValue(0, d1 -> 1, d2 -> 2, d3 -> 3)
+    val program = a.updateSelf(_ + 2)
+    val vt = program.run(uid = d1)(Env())
+    vt.nv(d1) shouldBe 3
+    vt.nv(d2) shouldBe 2
+    vt.nv(d3) shouldBe 3
+    vt.nv(d4) shouldBe 0
+
+  test("update self - 2"):
+    val a: Aggregate[Int] = NValue(0, d1 -> 1, d2 -> 2, d3 -> 3)
+    val program = a.updateSelf(0)
+    val vt = program.run(uid = d1)(Env())
+    vt.nv(d1) shouldBe 0
+    vt.nv(d2) shouldBe 2
     vt.nv(d3) shouldBe 3
     vt.nv(d4) shouldBe 0
 

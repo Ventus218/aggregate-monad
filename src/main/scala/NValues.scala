@@ -22,7 +22,7 @@ object NValues:
     def apply(d: Device): A = nv.values.get(d).getOrElse(nv.default)
 
     def set(d: Device, value: A): NValue[A] =
-      NValue(nv.default, nv.values.updated(d, value))
+      setWith(d, _ => value)
 
     def setWith(d: Device, f: A => A): NValue[A] =
       val value = f(nv(d))
