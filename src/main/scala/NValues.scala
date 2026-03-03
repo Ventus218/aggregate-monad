@@ -13,7 +13,7 @@ object NValues:
       s"$default[$overrides]"
 
   object NValue:
-    def apply[A](default: A, values: Map[Device, A] = Map()): NValue[A] =
+    def apply[A](default: A, values: Map[Device, A]): NValue[A] =
       NValueImpl(default, values.filter((_, a) => a != default))
     def apply[A](default: A, values: (Device, A)*): NValue[A] =
       NValue(default, values.toMap)

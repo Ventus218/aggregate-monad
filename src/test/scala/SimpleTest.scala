@@ -14,6 +14,7 @@ class SimpleTest extends org.scalatest.funsuite.AnyFunSuite:
   val d2: Device = Device.fromInt(2)
   val d3: Device = Device.fromInt(3)
   val d4: Device = Device.fromInt(4)
+  val devices = Set(d1, d2, d3, d4)
 
   test("pointwise on NValues"):
     val nva = NValue(3, Map(d1 -> 3, d2 -> 0))
@@ -27,6 +28,29 @@ class SimpleTest extends org.scalatest.funsuite.AnyFunSuite:
     nvc(d2) shouldBe 1
     nvc(d3) shouldBe 6
     nvc(d4) shouldBe 4
+
+  test("pointwise math on NValues"):
+    val nva = NValue(3f, Map(d1 -> 3f, d2 -> 0f))
+    val nvb = NValue(1f, Map(d1 -> 1f, d3 -> 3f))
+
+    devices.foreach: d =>
+      (nva eq nvb)(d) shouldBe nva(d) == nvb(d)
+      (nva + nvb)(d) shouldBe nva(d) + nvb(d)
+      (nva - nvb)(d) shouldBe nva(d) - nvb(d)
+      (nva * nvb)(d) shouldBe nva(d) * nvb(d)
+      (nva < nvb)(d) shouldBe nva(d) < nvb(d)
+      (nva > nvb)(d) shouldBe nva(d) > nvb(d)
+      (nva <= nvb)(d) shouldBe nva(d) <= nvb(d)
+      (nva >= nvb)(d) shouldBe nva(d) >= nvb(d)
+      (nva / nvb)(d) shouldBe nva(d) / nvb(d)
+
+  test("pointwise logic on NValues"):
+    val nva = NValue(true, Map(d1 -> false, d2 -> false))
+    val nvb = NValue(false, Map(d1 -> false, d3 -> true))
+
+    devices.foreach: d =>
+      (nva | nvb)(d) shouldBe nva(d) | nvb(d)
+      (nva & nvb)(d) shouldBe nva(d) & nvb(d)
 
   test("add override to NValues"):
     val nv = NValue(3, Map(d1 -> 3, d2 -> 0)).set(d3, 6)
@@ -79,6 +103,33 @@ class SimpleTest extends org.scalatest.funsuite.AnyFunSuite:
     vt.nv(d2) shouldBe 2
     vt.nv(d3) shouldBe 3
     vt.nv(d4) shouldBe 0
+
+  test("pointwise math on Aggregate"):
+    val aNV = NValue(3f, Map(d1 -> 3f, d2 -> 0f))
+    val bNV = NValue(1f, Map(d1 -> 1f, d3 -> 3f))
+    val a = fromNV(aNV)
+    val b = fromNV(bNV)
+    val env = Env()
+
+    (a eq b).run(d1)(env).nv shouldBe (aNV eq bNV)
+    (a + b).run(d1)(env).nv shouldBe (aNV + bNV)
+    (a - b).run(d1)(env).nv shouldBe (aNV - bNV)
+    (a * b).run(d1)(env).nv shouldBe (aNV * bNV)
+    (a < b).run(d1)(env).nv shouldBe (aNV < bNV)
+    (a > b).run(d1)(env).nv shouldBe (aNV > bNV)
+    (a <= b).run(d1)(env).nv shouldBe (aNV <= bNV)
+    (a >= b).run(d1)(env).nv shouldBe (aNV >= bNV)
+    (a / b).run(d1)(env).nv shouldBe (aNV / bNV)
+
+  test("pointwise logic on Aggregate"):
+    val aNV = NValue(true, Map(d1 -> false, d2 -> false))
+    val bNV = NValue(false, Map(d1 -> false, d3 -> true))
+    val a = fromNV(aNV)
+    val b = fromNV(bNV)
+    val env = Env()
+
+    (a | b).run(d1)(env).nv shouldBe (aNV | bNV)
+    (a & b).run(d1)(env).nv shouldBe (aNV & bNV)
 
   test("mux"):
     val cond = NValue(true, Map(d1 -> true, d2 -> false))

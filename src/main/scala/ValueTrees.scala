@@ -12,6 +12,12 @@ object ValueTrees:
     ) extends ValueTree[R]
     case Call(id: String, f: ValueTree[A])
 
+    private def children: Seq[ValueTree[Any]] = this match
+      case NVal(nv)                => Seq()
+      case Exchange(ret, send)     => Seq(ret, send)
+      case Call(id, f)             => Seq(f)
+      case Sequence(before, after) => Seq(before, after)
+
     override def toString(): String =
       def indented(t: ValueTree[Any], level: Int): String =
         val str = t match
@@ -40,9 +46,3 @@ object ValueTrees:
       case Exchange(ret, send)     => ret.nv
       case Call(id, f)             => f.nv
       case Sequence(before, after) => after.nv
-
-    def children: Seq[ValueTree[Any]] = vt match
-      case NVal(nv)                => Seq()
-      case Exchange(ret, send)     => Seq(ret, send)
-      case Call(id, f)             => Seq(f)
-      case Sequence(before, after) => Seq(before, after)
