@@ -66,7 +66,7 @@ object AggregateAPI extends AggregateAPI:
 
   object Env:
     def apply(env: Map[Device, ValueTree[Any]]): Env = env
-    def apply(env: (Device, ValueTree[Any])*): Env = Map(env*)
+    def apply(env: (Device, ValueTree[Any])*): Env = Env(env.toMap)
 
   given from[A]: Conversion[A, Aggregate[A]] = pure
   given fromNV[A]: Conversion[NValue[A], Aggregate[A]] = pure

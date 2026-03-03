@@ -7,7 +7,7 @@ object AggregateLib:
     exchange(default)(a => (a, send))
 
   def nbr[A](a: Aggregate[A]): Aggregate[A] =
-    exchange(a)(n => (n, a))
+    nbr(a, a)
 
   def rep[A](a: Aggregate[A])(f: Aggregate[A] => Aggregate[A]): Aggregate[A] =
     exchange(a)(n => retsend(f(n.self)))
